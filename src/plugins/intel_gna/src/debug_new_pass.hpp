@@ -23,4 +23,8 @@
 
 namespace intel_gna_debug {
 void DebugVisualize(ov::pass::Manager& manager, const std::string& name);
+void DebugVisualize(const std::shared_ptr<ov::Model>& model, const std::string& name);
 } // namespace intel_gna_debug
+
+#define EMUTEX_DEBUG_VISUALIZE(name) intel_gna_debug::DebugVisualize(manager, name);
+#define EMUTEX_DEBUG_MODEL_VISUALIZE(model, name) intel_gna_debug::DebugVisualize(model, name);

@@ -3,13 +3,11 @@
 //
 
 #include "debug_new_pass.hpp"
+#include "transformations/init_node_info.hpp"
 
-#ifdef DEBUG_VISUALIZE
-#include "ngraph/pass/visualize_tree.hpp" // DEBUG
-//#include "openvino/pass/serialize.hpp" // DEBUG
+#include "ngraph/pass/visualize_tree.hpp"
+#include "openvino/pass/serialize.hpp"
 #include <sstream>
-#endif
-
 
 namespace intel_gna_debug {
 
@@ -25,6 +23,15 @@ void DebugVisualize(ov::pass::Manager& manager, const std::string& name) {
     manager.register_pass<ov::pass::Serialize>(ss.str() + ".xml", ss.str() + ".bin");
 #endif
     ++counter;
+#endif
+}
+
+void DebugVisualize(const std::shared_ptr<ov::Model>& model, const std::string& name) {
+#ifdef DEBUG_VISUALIZE
+    ov::pass::Manager manager;
+    manager.register_pass<ov::pass::InitNodeInfo>();
+    DebugVisualize(manager, name);
+    manager.run_passes(model);
 #endif
 }
 
