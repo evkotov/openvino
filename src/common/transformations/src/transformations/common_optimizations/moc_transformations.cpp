@@ -91,6 +91,80 @@
 #include "transformations/smart_reshape/matmul_sr.hpp"
 #include "transformations/smart_reshape/reshape_sinking.hpp"
 
+#include "openvino/pass/serialize.hpp" // DEBUG
+#include "openvino/pass/visualize_tree.hpp" // DEBUG
+
+#include "openvino/op/util/sub_graph_base.hpp"
+
+namespace {
+
+class DebugSerialize : public ov::pass::ModelPass {
+public:
+    OPENVINO_RTTI("DebugSerialize", "0");
+    DebugSerialize(const std::string& prefix) : _prefix(prefix) {}
+    bool run_on_model(const std::shared_ptr<ov::Model>& m) override;
+private:
+    const std::string _prefix;
+};
+
+void print_subgraph_body_connections(const std::string& prefix,
+                                     const std::shared_ptr<ov::op::util::SubGraphOp>& parent_subgraph,
+                                     const std::shared_ptr<ov::Model>& model) {
+    const auto& model_params = model->get_parameters();
+    for (const auto& input_desc: parent_subgraph->get_input_descriptions()) {
+        std::cout << "[EMUTEX DEBUG] [" << prefix << "] subgraph input[" << input_desc->m_input_index <<
+                  "] connect to model Parameter[" << input_desc->m_body_parameter_index << "] \"" <<
+                  model_params[input_desc->m_body_parameter_index]->get_friendly_name() << "\"" << std::endl;
+    }
+
+    const auto& model_results = model->get_results();
+    for (const auto& output_desc: parent_subgraph->get_output_descriptions()) {
+        std::cout << "[EMUTEX DEBUG] [" << prefix << "] subgraph output[" << output_desc->m_output_index <<
+                  "] connect to model Result[" << output_desc->m_body_value_index << "] \"" <<
+                  model_results[output_desc->m_body_value_index]->get_friendly_name() << "\"" << std::endl;
+    }
+}
+
+void dump_model(const std::shared_ptr<ov::Model>& model,
+                const std::string& prefix,
+                int& counter,
+                const std::shared_ptr<ov::op::util::SubGraphOp>& parent_subgraph) {
+    {
+        std::stringstream ss;
+        ss << prefix << "_" << counter++;
+        const std::string name = ss.str();
+        ov::pass::Manager manager;
+        //manager.register_pass<ov::pass::Serialize>(name + ".xml", name + ".bin");
+        manager.register_pass<ov::pass::VisualizeTree>(name + ".png");
+        manager.run_passes(model);
+    }
+
+    if (parent_subgraph) {
+        print_subgraph_body_connections(prefix, parent_subgraph, model);
+    }
+
+    for (auto& node : model->get_ops()) {
+        // Recursively apply transformation for sub-graph based operations
+        if (auto sub_graph_node = std::dynamic_pointer_cast<ov::op::util::SubGraphOp>(node)) {
+            std::cout << "[EMUTEX DEBUG] [" << prefix <<
+            "] found sub_graph_node " << sub_graph_node->get_friendly_name() << std::endl;
+            if (auto sub_graph = sub_graph_node->get_function()) {
+                dump_model(sub_graph, prefix, counter, sub_graph_node);
+            }
+        }
+    }
+}
+
+bool DebugSerialize::run_on_model(const std::shared_ptr<ov::Model>& f) {
+#if 1
+    int counter = 0;
+    dump_model(f, _prefix, counter, nullptr);
+#endif
+    return false;
+}
+
+} // namespace
+
 bool ov::pass::MOCTransformations::run_on_model(const std::shared_ptr<ov::Model>& f) {
     RUN_ON_FUNCTION_SCOPE(MOCTransformations);
     // To avoid issues with dynamism we make ov::Model dynamic and after we apply all
@@ -117,6 +191,9 @@ bool ov::pass::MOCTransformations::run_on_model(const std::shared_ptr<ov::Model>
     manager.set_per_pass_validation(false);
     using namespace ov::pass;
     REGISTER_PASS(manager, InitNodeInfo)
+
+    //manager.register_pass<DebugSerialize>("first_moc"); // DEBUG
+
     if (m_low_precision_enabled) {
         manager.register_pass<ov::pass::MarkDequantizationSubgraph>(
             element::TypeVector{ov::element::i8, ov::element::u8, ov::element::i4, ov::element::u4});
@@ -172,8 +249,14 @@ bool ov::pass::MOCTransformations::run_on_model(const std::shared_ptr<ov::Model>
     REGISTER_PASS(manager, PullThroughReduce)
 
     // GRUCellFusion and SequenceFusion should be before NopElimination
+    manager.register_pass<DebugSerialize>("before_LSTMCellFusion"); // DEBUG
     REGISTER_PASS(manager, LSTMCellFusion)
+    manager.register_pass<DebugSerialize>("after_LSTMCellFusion"); // DEBUG
+
+    //manager.register_pass<DebugSerialize>("before_GRUCellFusion"); // DEBUG
     REGISTER_PASS(manager, GRUCellFusion)
+    //manager.register_pass<DebugSerialize>("after_GRUCellFusion"); // DEBUG
+
     REGISTER_PASS(manager, SequenceFusion)
 
     auto transpose_sinking = manager.register_pass<ov::pass::GraphRewrite>();

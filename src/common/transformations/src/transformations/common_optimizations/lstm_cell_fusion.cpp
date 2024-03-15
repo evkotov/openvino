@@ -114,8 +114,11 @@ static std::string get_activation_name(const std::shared_ptr<ov::Node>& node) {
     return name;
 }
 
+#if 0
 ov::pass::LSTMCellFusion::LSTMCellFusion() {
     MATCHER_SCOPE(LSTMCellFusion);
+
+    std::cout << "[EMUTEX DEBUG] LSTMCellFusion()" << std::endl;
 
     auto x_label = pattern::any_input(pattern::rank_equals(2));
     auto h_label = pattern::any_input(pattern::rank_equals(2));
@@ -142,6 +145,9 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
     auto Ho_label = pattern::wrap_type<op::v1::Multiply>({Co_activation_label, ot_label});
 
     matcher_pass_callback callback = [OV_CAPTURE_CPY_AND_THIS](pattern::Matcher& m) {
+
+        std::cout << "[EMUTEX DEBUG] LSTMCellFusion callback" << std::endl;
+
         const auto& pattern_map = m.get_pattern_value_map();
 
         const auto& X = pattern_map.at(x_label);
@@ -352,3 +358,208 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
     auto m = std::make_shared<pattern::Matcher>(Ho_label, matcher_name);
     this->register_matcher(m, callback);
 }
+#endif
+
+#if 1
+
+namespace {
+/*
+ * We accept B_shape = {1,...1, 4*hidden_size, 1, ... 1}
+ */
+    size_t get_hidden_size_from_bias_shape(const ov::Shape &shape, bool &is_shape_correct) {
+        is_shape_correct = false;
+
+        // B_shape cannot be empty
+        if (shape.empty())
+            return 0;
+
+
+        const size_t n_one_items = std::count(shape.begin(), shape.end(), 1);
+
+        /*
+        * B_shape = {K}
+        * K > 1 => n_one_items = 0
+        * B_shape = {1, ... K, ... 1}
+        * K > 1 => n_one_items = B_shape.size() - 1
+        */
+        if (n_one_items != (shape.size() - 1))
+            return 0;
+
+        auto it = std::find_if(shape.begin(), shape.end(), [](ov::Shape::value_type elem) {
+            return elem != 1;
+        });
+
+        // that cannot be since we have dimension = 4*hidden_size
+        if (it == shape.end())
+            return 0;
+
+        const size_t hidden_size_4 = *it;
+        if (hidden_size_4 % 4)
+            return 0;
+
+        is_shape_correct = true;
+        return hidden_size_4 / 4;
+    }
+
+/*
+ * We accept shape [4*hidden_size, input_size] if transposed otherwise [input_size, 4*hidden_size]
+ */
+    bool is_weights_shape_correct(const ov::Shape &shape, bool weights_transposed, size_t hidden_size) {
+        if (shape.size() != 2)
+            return false;
+
+        const size_t hidden_size_4_idx = weights_transposed ? 0 : 1;
+
+        if (shape[hidden_size_4_idx] % 4)
+            return false;
+
+        return (shape[hidden_size_4_idx]/4) == hidden_size;
+    }
+
+/*
+ * We accept shape [4*hidden_size, hidden_size] if transposed otherwise [hidden_size, 4*hidden_size]
+ */
+    bool is_r_weights_correct(const ov::Shape &shape, bool is_r_weights_transposed, size_t hidden_size) {
+        if (shape.size() != 2)
+            return false;
+
+        const size_t hidden_size_idx = is_r_weights_transposed ? 1 : 0;
+        const size_t hidden_size_4_idx = is_r_weights_transposed ? 0 : 1;
+
+        if (shape[hidden_size_4_idx] % 4)
+            return false;
+
+        return shape[hidden_size_4_idx]/4 == shape[hidden_size_idx] && shape[hidden_size_idx] == hidden_size;
+    }
+} // namespace
+
+ov::pass::LSTMCellFusion::LSTMCellFusion() {
+    MATCHER_SCOPE(LSTMCellFusion);
+
+    std::cout << "[EMUTEX DEBUG] LSTMCellFusion()" << std::endl;
+
+    auto x_label = pattern::any_input(); // Gather_104
+    auto weights_label = pattern::any_input(); // while_matmul_kernel_0
+
+    auto h_label = pattern::any_input(); // while_placeholder_2
+    auto r_label = pattern::any_input(); // while_matmul_1_recurrent_kernel_0
+
+    auto xw_matmul_label = pattern::wrap_type<op::v0::MatMul>({x_label, weights_label}); // while/MatMul
+    auto hr_matmul_label = pattern::wrap_type<op::v0::MatMul>({h_label, r_label}); // while/MatMul_1
+    auto while_add_label = pattern::wrap_type<op::v1::Add>({xw_matmul_label, hr_matmul_label}); // while/add
+
+    auto bias_label = pattern::any_input(pattern::has_static_shape()); // while_biasadd_bias_0
+    auto bias_add_label = pattern::wrap_type<op::v1::Add>({/*matmul_label*/ while_add_label, bias_label}); // while/BiasAdd
+
+    auto axis_label = pattern::wrap_type<op::v0::Constant>(); // while/split/split_dim
+    auto split_label = pattern::wrap_type<op::v1::Split>({bias_add_label, axis_label}); // while/split
+    auto it_label = pattern::wrap_type<op::v0::Relu, op::v0::Sigmoid, op::v0::Tanh>({split_label}); // while/Sigmoid
+    auto ct_label = pattern::wrap_type<op::v0::Relu, op::v0::Sigmoid, op::v0::Tanh>({split_label}); // while/Tanh
+
+    auto ft_label = pattern::wrap_type<op::v0::Relu, op::v0::Sigmoid, op::v0::Tanh>({/*add_label*/ split_label}); // while/Sigmoid_1
+    auto ot_label = pattern::wrap_type<op::v0::Relu, op::v0::Sigmoid, op::v0::Tanh>({split_label}); // while/Sigmoid_2
+    auto mul_label = pattern::wrap_type<op::v1::Multiply>({it_label, ct_label}); // while/mul_1
+    auto c_label = pattern::any_input(); // while_placeholder_3
+    auto mul1_label = pattern::wrap_type<op::v1::Multiply>({ft_label, c_label}); // while/mul
+    auto Co_label = pattern::wrap_type<op::v1::Add>({mul_label, mul1_label}); // while/add_1
+    auto Co_activation_label = pattern::wrap_type<op::v0::Relu, op::v0::Sigmoid, op::v0::Tanh>({Co_label}); // while/Tanh_1
+    auto Ho_label = pattern::wrap_type<op::v1::Multiply>({Co_activation_label, ot_label}); // while/mul_2
+
+    matcher_pass_callback callback = [=](pattern::Matcher& m) {
+
+        std::cout << "[EMUTEX DEBUG] [LSTMCellFusion callback] start" << std::endl;
+
+        const auto& pattern_map = m.get_pattern_value_map();
+
+        const auto& X = pattern_map.at(x_label);
+        const auto& H = pattern_map.at(h_label);
+        const auto& C = pattern_map.at(c_label);
+        auto W = pattern_map.at(weights_label);
+        auto R = pattern_map.at(r_label);
+        auto B = pattern_map.at(bias_label);
+        auto Ho = pattern_map.at(Ho_label);
+        auto Co = pattern_map.at(Co_label);
+
+        auto xw_matmul = ov::as_type_ptr<op::v0::MatMul>(pattern_map.at(xw_matmul_label).get_node_shared_ptr());
+        auto hr_matmul = ov::as_type_ptr<op::v0::MatMul>(pattern_map.at(hr_matmul_label).get_node_shared_ptr());
+
+        //
+        const auto& W_shape = W.get_shape(); // must be [4*hidden_size, input_size] if transposed
+        const auto& R_shape = R.get_shape(); // must be [4*hidden_size, hidden_size] if transposed
+        const auto& B_shape = B.get_shape(); // must be [4*hidden_size]
+
+        bool is_shape_correct = false;
+        const size_t hidden_size = get_hidden_size_from_bias_shape(B_shape, is_shape_correct);
+        if (!is_shape_correct)
+            return false;
+
+        const bool is_weights_transposed = xw_matmul->get_transpose_b();
+        if (!is_weights_shape_correct(W_shape, is_weights_transposed, hidden_size))
+            return false;
+
+        const bool is_r_weights_transposed = hr_matmul->get_transpose_b();
+        if (!is_r_weights_correct(R_shape, is_r_weights_transposed, hidden_size))
+            return false;
+
+        // activation names
+        auto ft = pattern_map.at(ft_label).get_node_shared_ptr();
+        std::string f_activation_name = get_activation_name(ft);
+
+        auto ct = pattern_map.at(ct_label).get_node_shared_ptr();
+        std::string g_activation_name = get_activation_name(ct);
+
+        auto Co_activation = pattern_map.at(Co_activation_label).get_node_shared_ptr();
+        std::string h_activation_name = get_activation_name(Co_activation);
+
+        /* FIXME:
+        if (f_activation_name != it->get_type_name() || f_activation_name != ot->get_type_name())
+            return false;
+            */
+
+        // add transposes on W and R
+        auto w_input = W;
+        if (!is_weights_transposed) {
+            auto w_transpose_order = std::make_shared<op::v0::Constant>(element::u32, ov::Shape{2}, ov::Shape{1, 0});
+            w_input = std::make_shared<op::v1::Transpose>(W, w_transpose_order);
+        }
+
+        auto r_input = R;
+        if (!is_r_weights_transposed) {
+            auto r_transpose_order = std::make_shared<op::v0::Constant>(element::u32, ov::Shape{2}, ov::Shape{1, 0});
+            r_input = std::make_shared<op::v1::Transpose>(R, r_transpose_order);
+        }
+
+        std::cout << "[EMUTEX DEBUG] [CHECKPOINT 1]" << std::endl;
+
+        auto lstm_cell = std::make_shared<op::v4::LSTMCell>(
+                X,
+                H,
+                C,
+                w_input,
+                r_input,
+                /* B_fico FIXME ? */ B,
+                hidden_size,
+                std::vector<std::string>{f_activation_name, g_activation_name, h_activation_name});
+
+        std::cout << "[EMUTEX DEBUG] [CHECKPOINT 2]" << std::endl;
+
+        if (transformation_callback(lstm_cell)) {
+            return false;
+        }
+
+        std::cout << "[EMUTEX DEBUG] [CHECKPOINT 3]" << std::endl;
+
+        lstm_cell->set_friendly_name(m.get_match_root()->get_friendly_name());
+
+        Ho.replace(lstm_cell->output(0));
+        Co.replace(lstm_cell->output(1));
+
+        std::cout << "[EMUTEX DEBUG] [LSTMCellFusion callback] successfully finished" << std::endl;
+
+        return true;
+    };
+
+    auto m = std::make_shared<pattern::Matcher>(Ho_label, matcher_name);
+    this->register_matcher(m, callback);
+}
+#endif

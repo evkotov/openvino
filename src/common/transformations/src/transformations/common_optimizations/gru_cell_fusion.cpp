@@ -81,6 +81,8 @@ tuple<ov::Output<ov::Node>, ov::Output<ov::Node>> process_weights(NodeRegistry& 
 ov::pass::GRUCellFusion::GRUCellFusion() {
     MATCHER_SCOPE(GRUCellFusion);
 
+    std::cout << "[EMUTEX DEBUG] GRUCellFusion()" << std::endl;
+
     // we can't determine hidden_size or input_size in this case
     const auto is_first_dim_static = [](const Output<Node>& output) -> bool {
         const auto& p_shape = output.get_partial_shape();
@@ -107,6 +109,9 @@ ov::pass::GRUCellFusion::GRUCellFusion() {
     auto add = wrap_type<ov::op::v1::Add>({multiply_2, multiply_3});
 
     matcher_pass_callback callback = [=](pattern::Matcher& m) {
+
+        std::cout << "[EMUTEX DEBUG] GRUCellFusion callback" << std::endl;
+
         NodeRegistry rg;
         auto pattern_map = m.get_pattern_map();
         auto concat = pattern_map.at(concat_1);
