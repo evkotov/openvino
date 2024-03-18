@@ -22,6 +22,7 @@
 #include "openvino/op/variadic_split.hpp"
 #include "openvino/pass/pattern/op/wrap_type.hpp"
 #include "transformations/utils/utils.hpp"
+#include "rnn_base_shape_inference.hpp"
 
 /*
     The following graph is fused to LSTMCell
@@ -404,7 +405,7 @@ namespace {
 /*
  * We accept shape [4*hidden_size, input_size] if transposed otherwise [input_size, 4*hidden_size]
  */
-    bool is_weights_shape_correct(const ov::Shape &shape, bool weights_transposed, size_t hidden_size) {
+    bool is_w_weights_shape_correct(const ov::Shape &shape, bool weights_transposed, size_t hidden_size) {
         if (shape.size() != 2)
             return false;
 
@@ -419,7 +420,7 @@ namespace {
 /*
  * We accept shape [4*hidden_size, hidden_size] if transposed otherwise [hidden_size, 4*hidden_size]
  */
-    bool is_r_weights_correct(const ov::Shape &shape, bool is_r_weights_transposed, size_t hidden_size) {
+    bool is_r_weights_shape_correct(const ov::Shape &shape, bool is_r_weights_transposed, size_t hidden_size) {
         if (shape.size() != 2)
             return false;
 
@@ -494,11 +495,11 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
             return false;
 
         const bool is_weights_transposed = xw_matmul->get_transpose_b();
-        if (!is_weights_shape_correct(W_shape, is_weights_transposed, hidden_size))
+        if (!is_w_weights_shape_correct(W_shape, is_weights_transposed, hidden_size))
             return false;
 
         const bool is_r_weights_transposed = hr_matmul->get_transpose_b();
-        if (!is_r_weights_correct(R_shape, is_r_weights_transposed, hidden_size))
+        if (!is_r_weights_shape_correct(R_shape, is_r_weights_transposed, hidden_size))
             return false;
 
         // activation names
@@ -516,18 +517,28 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
             return false;
             */
 
-        // add transposes on W and R
+        // add transposes on W
         auto w_input = W;
         if (!is_weights_transposed) {
             auto w_transpose_order = std::make_shared<op::v0::Constant>(element::u32, ov::Shape{2}, ov::Shape{1, 0});
             w_input = std::make_shared<op::v1::Transpose>(W, w_transpose_order);
         }
+        // convert W into fico format
+        w_input = ov::op::util::convert_lstm_node_format(w_input, ov::op::util::LSTMWeightsFormat::IFCO,
+                                                         ov::op::util::LSTMWeightsFormat::FICO);
 
+        // add transposes on R
         auto r_input = R;
         if (!is_r_weights_transposed) {
             auto r_transpose_order = std::make_shared<op::v0::Constant>(element::u32, ov::Shape{2}, ov::Shape{1, 0});
             r_input = std::make_shared<op::v1::Transpose>(R, r_transpose_order);
         }
+        // convert R into fico format
+        r_input = ov::op::util::convert_lstm_node_format(r_input, ov::op::util::LSTMWeightsFormat::IFCO,
+                                                         ov::op::util::LSTMWeightsFormat::FICO);
+
+        auto b_input = ov::op::util::convert_lstm_node_format(B, ov::op::util::LSTMWeightsFormat::IFCO,
+                                                              ov::op::util::LSTMWeightsFormat::FICO);
 
         std::cout << "[EMUTEX DEBUG] [CHECKPOINT 1]" << std::endl;
 
@@ -537,19 +548,20 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
                 C,
                 w_input,
                 r_input,
-                /* B_fico FIXME ? */ B,
+                b_input,
                 hidden_size,
                 std::vector<std::string>{f_activation_name, g_activation_name, h_activation_name});
 
         std::cout << "[EMUTEX DEBUG] [CHECKPOINT 2]" << std::endl;
-
+#if 0
         if (transformation_callback(lstm_cell)) {
             return false;
         }
-
+#endif
         std::cout << "[EMUTEX DEBUG] [CHECKPOINT 3]" << std::endl;
-
+03
         lstm_cell->set_friendly_name(m.get_match_root()->get_friendly_name());
+        std::cout << "[EMUTEX DEBUG] added LSTMCell " << lstm_cell->get_friendly_name() << std::endl;
 
         Ho.replace(lstm_cell->output(0));
         Co.replace(lstm_cell->output(1));
