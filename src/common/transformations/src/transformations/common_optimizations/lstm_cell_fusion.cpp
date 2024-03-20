@@ -437,13 +437,15 @@ namespace {
 ov::pass::LSTMCellFusion::LSTMCellFusion() {
     MATCHER_SCOPE(LSTMCellFusion);
 
-    std::cout << "[EMUTEX DEBUG] LSTMCellFusion()" << std::endl;
+    auto x_label = pattern::any_input(pattern::rank_equals(2)); // Gather_104
+    auto weights_label = pattern::any_input([](const Output<Node>& output) {
+        return pattern::has_static_shape()(output) && pattern::rank_equals(2)(output);
+    }); // while_matmul_kernel_0
 
-    auto x_label = pattern::any_input(); // Gather_104
-    auto weights_label = pattern::any_input(); // while_matmul_kernel_0
-
-    auto h_label = pattern::any_input(); // while_placeholder_2
-    auto r_label = pattern::any_input(); // while_matmul_1_recurrent_kernel_0
+    auto h_label = pattern::any_input(pattern::rank_equals(2)); // while_placeholder_2
+    auto r_label = pattern::any_input([](const Output<Node>& output) {
+        return pattern::has_static_shape()(output) && pattern::rank_equals(2)(output);
+    }); // while_matmul_1_recurrent_kernel_0
 
     auto xw_matmul_label = pattern::wrap_type<op::v0::MatMul>({x_label, weights_label}); // while/MatMul
     auto hr_matmul_label = pattern::wrap_type<op::v0::MatMul>({h_label, r_label}); // while/MatMul_1
@@ -467,9 +469,6 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
     auto Ho_label = pattern::wrap_type<op::v1::Multiply>({Co_activation_label, ot_label}); // while/mul_2
 
     matcher_pass_callback callback = [=](pattern::Matcher& m) {
-
-        std::cout << "[EMUTEX DEBUG] [LSTMCellFusion callback] start" << std::endl;
-
         const auto& pattern_map = m.get_pattern_value_map();
 
         const auto& X = pattern_map.at(x_label);
@@ -480,6 +479,8 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
         auto B = pattern_map.at(bias_label);
         auto Ho = pattern_map.at(Ho_label);
         auto Co = pattern_map.at(Co_label);
+        auto ot = pattern_map.at(ot_label).get_node_shared_ptr();
+        auto it = pattern_map.at(it_label).get_node_shared_ptr();
 
         auto xw_matmul = ov::as_type_ptr<op::v0::MatMul>(pattern_map.at(xw_matmul_label).get_node_shared_ptr());
         auto hr_matmul = ov::as_type_ptr<op::v0::MatMul>(pattern_map.at(hr_matmul_label).get_node_shared_ptr());
@@ -512,35 +513,28 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
         auto Co_activation = pattern_map.at(Co_activation_label).get_node_shared_ptr();
         std::string h_activation_name = get_activation_name(Co_activation);
 
-        /* FIXME:
-        if (f_activation_name != it->get_type_name() || f_activation_name != ot->get_type_name())
+        if (f_activation_name != get_activation_name(it) || f_activation_name != get_activation_name(ot))
             return false;
-            */
 
-        // add transposes on W
+        // proceed W,R and B inputs
         auto w_input = W;
         if (!is_weights_transposed) {
             auto w_transpose_order = std::make_shared<op::v0::Constant>(element::u32, ov::Shape{2}, ov::Shape{1, 0});
             w_input = std::make_shared<op::v1::Transpose>(W, w_transpose_order);
         }
-        // convert W into fico format
         w_input = ov::op::util::convert_lstm_node_format(w_input, ov::op::util::LSTMWeightsFormat::IFCO,
                                                          ov::op::util::LSTMWeightsFormat::FICO);
 
-        // add transposes on R
         auto r_input = R;
         if (!is_r_weights_transposed) {
             auto r_transpose_order = std::make_shared<op::v0::Constant>(element::u32, ov::Shape{2}, ov::Shape{1, 0});
             r_input = std::make_shared<op::v1::Transpose>(R, r_transpose_order);
         }
-        // convert R into fico format
         r_input = ov::op::util::convert_lstm_node_format(r_input, ov::op::util::LSTMWeightsFormat::IFCO,
                                                          ov::op::util::LSTMWeightsFormat::FICO);
 
         auto b_input = ov::op::util::convert_lstm_node_format(B, ov::op::util::LSTMWeightsFormat::IFCO,
                                                               ov::op::util::LSTMWeightsFormat::FICO);
-
-        std::cout << "[EMUTEX DEBUG] [CHECKPOINT 1]" << std::endl;
 
         auto lstm_cell = std::make_shared<op::v4::LSTMCell>(
                 X,
@@ -551,22 +545,15 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
                 b_input,
                 hidden_size,
                 std::vector<std::string>{f_activation_name, g_activation_name, h_activation_name});
-
-        std::cout << "[EMUTEX DEBUG] [CHECKPOINT 2]" << std::endl;
 #if 0
         if (transformation_callback(lstm_cell)) {
             return false;
         }
 #endif
-        std::cout << "[EMUTEX DEBUG] [CHECKPOINT 3]" << std::endl;
-03
         lstm_cell->set_friendly_name(m.get_match_root()->get_friendly_name());
-        std::cout << "[EMUTEX DEBUG] added LSTMCell " << lstm_cell->get_friendly_name() << std::endl;
 
         Ho.replace(lstm_cell->output(0));
         Co.replace(lstm_cell->output(1));
-
-        std::cout << "[EMUTEX DEBUG] [LSTMCellFusion callback] successfully finished" << std::endl;
 
         return true;
     };

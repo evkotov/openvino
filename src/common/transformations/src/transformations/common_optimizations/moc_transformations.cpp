@@ -91,6 +91,7 @@
 #include "transformations/smart_reshape/matmul_sr.hpp"
 #include "transformations/smart_reshape/reshape_sinking.hpp"
 
+#include "openvino/op/lstm_cell.hpp" // DEBUG
 #include "openvino/pass/serialize.hpp" // DEBUG
 #include "openvino/pass/visualize_tree.hpp" // DEBUG
 
@@ -161,6 +162,21 @@ bool DebugSerialize::run_on_model(const std::shared_ptr<ov::Model>& f) {
     dump_model(f, _prefix, counter, nullptr);
 #endif
     return false;
+}
+
+void printLSTMNodes(const std::shared_ptr<ov::Model>& f, const std::string& message) {
+    for (const auto& op: f->get_ops()) {
+        const auto subgraph = ov::as_type_ptr<ov::op::util::SubGraphOp>(op);
+        if (subgraph) {
+            printLSTMNodes(subgraph->get_function(), message);
+            continue;
+        }
+        const auto node = ov::as_type_ptr<ov::op::v4::LSTMCell>(op);
+        if (!node)
+            continue;
+        std::cout << "[EMUTEX DEBUG] [" << message << "] " << "found LSTMCell node " <<
+        node->get_friendly_name() << std::endl;
+    }
 }
 
 } // namespace
@@ -350,7 +366,10 @@ bool ov::pass::MOCTransformations::run_on_model(const std::shared_ptr<ov::Model>
     REGISTER_PASS(manager, SharedOpOptimization)
     REGISTER_PASS(manager, ConstantFolding)
     REGISTER_PASS(manager, ResolveNameCollisions)
+
+    printLSTMNodes(f, "before manager.run_passes");
     manager.run_passes(f);
+    printLSTMNodes(f, "after manager.run_passes");
 
     if (!m_use_shapes) {
         // Restore original shapes to the ov::Model
