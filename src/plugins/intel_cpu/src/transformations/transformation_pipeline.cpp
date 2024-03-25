@@ -138,6 +138,88 @@
 #include "dnnl.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 
+namespace {
+class DebugSerialize : public ov::pass::ModelPass {
+public:
+    OPENVINO_RTTI("DebugSerialize", "0");
+    DebugSerialize(const std::string& prefix) : _prefix(prefix) {}
+    bool run_on_model(const std::shared_ptr<ov::Model>& m) override;
+private:
+    const std::string _prefix;
+};
+
+void print_subgraph_body_connections(const std::string& prefix,
+                                     const std::shared_ptr<ov::op::util::SubGraphOp>& parent_subgraph,
+                                     const std::shared_ptr<ov::Model>& model) {
+    const auto& model_params = model->get_parameters();
+    for (const auto& input_desc : parent_subgraph->get_input_descriptions()) {
+        std::cout << "[EMUTEX DEBUG] [" << prefix << "] subgraph input[" << input_desc->m_input_index <<
+                  "] connect to model Parameter[" << input_desc->m_body_parameter_index << "] \"" <<
+                  model_params[input_desc->m_body_parameter_index]->get_friendly_name() << "\"" << std::endl;
+    }
+
+    const auto& model_results = model->get_results();
+    for (const auto& output_desc : parent_subgraph->get_output_descriptions()) {
+        std::cout << "[EMUTEX DEBUG] [" << prefix << "] subgraph output[" << output_desc->m_output_index <<
+                  "] connect to model Result[" << output_desc->m_body_value_index << "] \"" <<
+                  model_results[output_desc->m_body_value_index]->get_friendly_name() << "\"" << std::endl;
+    }
+}
+
+void dump_model(const std::shared_ptr<ov::Model>& model,
+                const std::string& prefix,
+                int& counter,
+                const std::shared_ptr<ov::op::util::SubGraphOp>& parent_subgraph) {
+    {
+        std::stringstream ss;
+        ss << prefix << "_" << counter++;
+        const std::string name = ss.str();
+        ov::pass::Manager manager;
+        //manager.register_pass<ov::pass::Serialize>(name + ".xml", name + ".bin");
+        manager.register_pass<ov::pass::VisualizeTree>(name + ".png");
+        manager.run_passes(model);
+    }
+
+    if (parent_subgraph) {
+        print_subgraph_body_connections(prefix, parent_subgraph, model);
+    }
+
+    for (auto& node : model->get_ops()) {
+        // Recursively apply transformation for sub-graph based operations
+        if (auto sub_graph_node = std::dynamic_pointer_cast<ov::op::util::SubGraphOp>(node)) {
+            std::cout << "[EMUTEX DEBUG] [" << prefix <<
+                      "] found sub_graph_node " << sub_graph_node->get_friendly_name() << std::endl;
+            if (auto sub_graph = sub_graph_node->get_function()) {
+                dump_model(sub_graph, prefix, counter, sub_graph_node);
+            }
+        }
+    }
+}
+
+bool DebugSerialize::run_on_model(const std::shared_ptr<ov::Model>& f) {
+#if 0
+    int counter = 0;
+    dump_model(f, _prefix, counter, nullptr);
+#endif
+    return false;
+}
+
+    void printLSTMNodes(const std::shared_ptr<ov::Model>& f, const std::string& message) {
+        for (const auto& op : f->get_ops()) {
+            const auto subgraph = ov::as_type_ptr<ov::op::util::SubGraphOp>(op);
+            if (subgraph) {
+                printLSTMNodes(subgraph->get_function(), message);
+                continue;
+            }
+            const auto node = ov::as_type_ptr<ov::op::v4::LSTMCell>(op);
+            if (!node)
+                continue;
+            std::cout << "[EMUTEX DEBUG] [" << message << "] " << "found LSTMCell node " <<
+                      node->get_friendly_name() << std::endl;
+        }
+    }
+} // namespace
+
 namespace ov {
 namespace intel_cpu {
 
@@ -565,7 +647,9 @@ void Transformations::PreLpt(const std::vector<ov::element::Type>& defaultPrecis
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::KeepConstAndDecompression);
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::ConstantFolding);
 
+    printLSTMNodes(model, "Transformations::PreLpt before run_passes");
     manager.run_passes(model);
+    printLSTMNodes(model, "Transformations::PreLpt after run_passes");
 }
 
 void Transformations::Lpt(const std::vector<ov::element::Type>& defaultPrecisions) {
@@ -670,7 +754,9 @@ void Transformations::Lpt(const std::vector<ov::element::Type>& defaultPrecision
     CPU_DISABLE_PASS_ARM(lptManager, RecurrentCellTransformation);
     CPU_DISABLE_PASS_COMMON(lptManager, MultiplyToGroupConvolutionTransformation);
 
+    printLSTMNodes(model, "Transformations::Lpt before run_passes");
     lptManager.run_passes(model);
+    printLSTMNodes(model, "Transformations::Lpt after run_passes");
 }
 
 void Transformations::PostLpt() {
@@ -715,7 +801,9 @@ void Transformations::PostLpt() {
     auto symbolic_pipeline = CPU_REGISTER_PASS_COMMON(postLPTPassManager, ov::pass::SymbolicOptimizations, false);
     symbolic_pipeline->get_manager()->register_pass<NgramFusion>();
 
+    printLSTMNodes(model, "Transformations::PostLpt before run_passes");
     postLPTPassManager.run_passes(model);
+    printLSTMNodes(model, "Transformations::PostLpt after run_passes");
 }
 
 void Transformations::MainSnippets(void) {

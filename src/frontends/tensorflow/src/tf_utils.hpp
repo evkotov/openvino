@@ -105,7 +105,7 @@ bool propagate_conditional_flow(const ov::OutputVector& ov_inputs,
 void copy_conditional_flow_marker(const CfMarkerType& copy_from, CfMarkerType& copy_to);
 
 // create Loop operation corresponding to TensorFlow While operation
-std::shared_ptr<ov::op::v5::Loop> create_loop_for_tf_while(
+ov::OutputVector create_loop_for_tf_while(
     const std::string& while_node_name,
     const std::shared_ptr<ov::Model>& body_model,
     const std::shared_ptr<ov::Model>& cond_model,

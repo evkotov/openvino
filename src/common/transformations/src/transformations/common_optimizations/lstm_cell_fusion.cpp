@@ -321,6 +321,8 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
             hidden_size,
             std::vector<std::string>{f_activation_name, g_activation_name, h_activation_name});
 
+        std::cout << "[EMUTEX DEBUG] created lstm_cell " << lstm_cell->get_friendly_name() << " created" << std::endl;
+
         if (transformation_callback(lstm_cell)) {
             return false;
         }
@@ -432,6 +434,60 @@ namespace {
 
         return shape[hidden_size_4_idx]/4 == shape[hidden_size_idx] && shape[hidden_size_idx] == hidden_size;
     }
+
+
+std::shared_ptr<ov::Node> convert_weights_input(const std::shared_ptr<ov::Node>& node, bool transpose) {
+    std::shared_ptr<ov::Node> tail = node;
+    if (transpose) {
+        auto transpose_order = std::make_shared<ov::op::v0::Constant>(ov::element::u32, ov::Shape{2}, ov::Shape{1, 0});
+        tail = std::make_shared<ov::op::v1::Transpose>(tail, transpose_order);
+    }
+    tail = ov::op::util::convert_lstm_node_format(tail, ov::op::util::LSTMWeightsFormat::IFCO,
+                                                     ov::op::util::LSTMWeightsFormat::FICO);
+
+    return ov::util::constantfold_subgraph(tail);
+}
+#if 0
+std::shared_ptr<ov::Node> clone_parent(const ov::Node* node,
+                                       const std::shared_ptr<ov::Node>& start_node,
+                                       std::unordered_map<size_t, std::shared_ptr<ov::Node>>& created_nodes) {
+        auto it = created_nodes.find(node->get_instance_id());
+        if (it != created_nodes.end())
+            retun it->second; // can occur when we arrived to node with multiple outputs (i.e. Split)
+
+        ov::OutputVector new_inputs;
+        const auto node_inputs = node->inputs();
+        if (node->get_instance_id() == start_node->get_instance_id()) {
+            if (!dynamic_cast<const ov::op::v0::Parameter*>(node) &&
+                    !dynamic_cast<const ov::op::v0::Constant*>(node)) {
+                if (node_inputs.size() != 1) {
+                    std::cout << "[EMUTEX DEBUG] [clone_subgraph] [ERROR] start_node should have only 1 input " <<
+                              " but " << node->get_friendly_name() << " has " << node_inputs.size() << std::endl;
+                    return nullptr;
+                }
+                auto parent_node = std::make_shared<ov::op::v0::Parameter>(node->get_output_element_type(0),
+                                                                           node->get_output_shape(0));
+                new_inputs.emplace_back(parent_node->output(0));
+            }
+        } else {
+            for (const auto &input: node_inputs) {
+                auto new_input_node = clone_parent(input.get_node(), start_node, created_nodes);
+                const size_t output_idx = input.get_source_output().get_index();
+                new_inputs.push_back(new_input_node->output(output_idx));
+            }
+        }
+        auto new_node = node->clone_with_new_inputs(new_inputs);
+        created_nodes[node->get_instance_id()] = new_node;
+        return new_node;
+}
+
+std::shared_ptr<ov::Model> clone_subgraph(const std::shared_ptr<ov::Node>& start_node,
+                                          const std::shared_ptr<ov::Node>& end_node) {
+    std::unordered_map<size_t, std::shared_ptr<ov::Node>> created_nodes;
+    auto& final_node = clone_parent(end_node.get(), start_node, created_nodes);
+    return std::make_shared<ov::Model>(ov::ParameterVector{}, ov::ResultVector{final_node}); // TODO
+    }
+#endif
 } // namespace
 
 ov::pass::LSTMCellFusion::LSTMCellFusion() {
@@ -469,14 +525,17 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
     auto Ho_label = pattern::wrap_type<op::v1::Multiply>({Co_activation_label, ot_label}); // while/mul_2
 
     matcher_pass_callback callback = [=](pattern::Matcher& m) {
+
+        std::cout << "[EMUTEX DEBUG] LSTMCellFusion start " << std::endl;
+
         const auto& pattern_map = m.get_pattern_value_map();
 
         const auto& X = pattern_map.at(x_label);
         const auto& H = pattern_map.at(h_label);
         const auto& C = pattern_map.at(c_label);
-        auto W = pattern_map.at(weights_label);
-        auto R = pattern_map.at(r_label);
-        auto B = pattern_map.at(bias_label);
+        auto W = pattern_map.at(weights_label).get_node_shared_ptr();
+        auto R = pattern_map.at(r_label).get_node_shared_ptr();
+        auto B = pattern_map.at(bias_label).get_node_shared_ptr();
         auto Ho = pattern_map.at(Ho_label);
         auto Co = pattern_map.at(Co_label);
         auto ot = pattern_map.at(ot_label).get_node_shared_ptr();
@@ -486,9 +545,9 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
         auto hr_matmul = ov::as_type_ptr<op::v0::MatMul>(pattern_map.at(hr_matmul_label).get_node_shared_ptr());
 
         //
-        const auto& W_shape = W.get_shape(); // must be [4*hidden_size, input_size] if transposed
-        const auto& R_shape = R.get_shape(); // must be [4*hidden_size, hidden_size] if transposed
-        const auto& B_shape = B.get_shape(); // must be [4*hidden_size]
+        const auto& W_shape = W->get_output_shape(0); // must be [4*hidden_size, input_size] if transposed
+        const auto& R_shape = R->get_output_shape(0); // must be [4*hidden_size, hidden_size] if transposed
+        const auto& B_shape = B->get_output_shape(0); // must be [4*hidden_size]
 
         bool is_shape_correct = false;
         const size_t hidden_size = get_hidden_size_from_bias_shape(B_shape, is_shape_correct);
@@ -517,24 +576,23 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
             return false;
 
         // proceed W,R and B inputs
-        auto w_input = W;
-        if (!is_weights_transposed) {
-            auto w_transpose_order = std::make_shared<op::v0::Constant>(element::u32, ov::Shape{2}, ov::Shape{1, 0});
-            w_input = std::make_shared<op::v1::Transpose>(W, w_transpose_order);
+        std::shared_ptr<Node> w_input = convert_weights_input(W, !is_weights_transposed);
+        if (!w_input) {
+            std::cout << "[EMUTEX DEBUG] cannot convert W input" << std::endl;
+            return false;
         }
-        w_input = ov::op::util::convert_lstm_node_format(w_input, ov::op::util::LSTMWeightsFormat::IFCO,
-                                                         ov::op::util::LSTMWeightsFormat::FICO);
 
-        auto r_input = R;
-        if (!is_r_weights_transposed) {
-            auto r_transpose_order = std::make_shared<op::v0::Constant>(element::u32, ov::Shape{2}, ov::Shape{1, 0});
-            r_input = std::make_shared<op::v1::Transpose>(R, r_transpose_order);
+        std::shared_ptr<Node> r_input = convert_weights_input(R, !is_r_weights_transposed);
+        if (!r_input) {
+            std::cout << "[EMUTEX DEBUG] cannot convert R input" << std::endl;
+            return false;
         }
-        r_input = ov::op::util::convert_lstm_node_format(r_input, ov::op::util::LSTMWeightsFormat::IFCO,
-                                                         ov::op::util::LSTMWeightsFormat::FICO);
 
-        auto b_input = ov::op::util::convert_lstm_node_format(B, ov::op::util::LSTMWeightsFormat::IFCO,
-                                                              ov::op::util::LSTMWeightsFormat::FICO);
+        std::shared_ptr<Node> b_input = convert_weights_input(B, false);
+        if (!b_input) {
+            std::cout << "[EMUTEX DEBUG] cannot convert B input" << std::endl;
+            return false;
+        }
 
         auto lstm_cell = std::make_shared<op::v4::LSTMCell>(
                 X,
@@ -545,15 +603,19 @@ ov::pass::LSTMCellFusion::LSTMCellFusion() {
                 b_input,
                 hidden_size,
                 std::vector<std::string>{f_activation_name, g_activation_name, h_activation_name});
-#if 0
+
+        std::cout << "[EMUTEX DEBUG] created lstm_cell " << lstm_cell->get_friendly_name() << " created" << std::endl;
+
         if (transformation_callback(lstm_cell)) {
             return false;
         }
-#endif
+
         lstm_cell->set_friendly_name(m.get_match_root()->get_friendly_name());
 
         Ho.replace(lstm_cell->output(0));
         Co.replace(lstm_cell->output(1));
+
+        // TODO: copy_runtime_info
 
         return true;
     };

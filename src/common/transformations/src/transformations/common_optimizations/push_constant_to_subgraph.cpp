@@ -15,13 +15,29 @@ static std::shared_ptr<ov::op::v0::Constant> try_constantfold_input(
     const std::shared_ptr<MultiSubGraphOp>& op,
     const MultiSubGraphOp::InputDescription::Ptr& input_desc,
     std::map<ov::Output<ov::Node>, std::shared_ptr<ov::op::v0::Constant>>& cache) {
+    const std::string& friendly_name = op->input_value(input_desc->m_input_index).get_node()->get_friendly_name();
+#if 0
+    std::cout << "[EMUTEX DEBUG] PushConstantToSubgraph friendly_name " << friendly_name << std::endl;
+    if (friendly_name != "model/lstm/zeros" &&
+            friendly_name != "model/lstm/zeros_1" &&
+            friendly_name != "lstm/lstm_cell/kernel" &&
+            friendly_name != "lstm/lstm_cell/recurrent_kernel" &&
+            friendly_name != "lstm/lstm_cell/bias")
+        return nullptr;
+    std::cout << "[EMUTEX DEBUG] PushConstantToSubgraph try_constantfold_input " << op->input_value(input_desc->m_input_index).get_node()->get_friendly_name() << std::endl;
+#endif
+#if 1
     if (!std::dynamic_pointer_cast<MultiSubGraphOp::InvariantInputDescription>(input_desc)) {
+        std::cout << "[EMUTEX DEBUG] " << __LINE__ << std::endl;
         return nullptr;
     }
+#endif
     const auto outer_input = op->input_value(input_desc->m_input_index);
     auto it = cache.find(outer_input);
     if (it == cache.end()) {
         auto constant = ov::util::constantfold_subgraph(outer_input);
+        if (!constant)
+            std::cout << "[EMUTEX DEBUG] PushConstantToSubgraph try_constantfold_input FAIL " << outer_input.get_node()->get_friendly_name() << std::endl;
         if (constant) {
             cache.insert({outer_input, constant});
         }
@@ -79,6 +95,7 @@ bool ov::pass::PushConstantToSubgraph::run_on_model(const std::shared_ptr<Model>
         if (!multi_sub_graph_op) {
             continue;
         }
+        std::cout << "[EMUTEX DEBUG] PushConstantToSubgraph multi_sub_graph_op " << multi_sub_graph_op->get_friendly_name() << std::endl;
 
         // cache for already constant folded inputs
         std::map<ov::Output<ov::Node>, std::shared_ptr<op::v0::Constant>> cache;
@@ -89,6 +106,13 @@ bool ov::pass::PushConstantToSubgraph::run_on_model(const std::shared_ptr<Model>
         for (int body_idx = 0; body_idx < num_subgraphs; body_idx++) {
             const auto& body = multi_sub_graph_op->get_function(body_idx);
             auto& body_params = body->get_parameters();
+            {
+                std::cout << "[EMUTEX DEBUG] PushConstantToSubgraph process body " << body_idx << " params ";
+                for (const auto& param : body_params) {
+                    std::cout << param->get_friendly_name() << " ";
+                }
+                std::cout << std::endl;
+            }
             auto& descriptions = multi_sub_graph_op->get_input_descriptions(body_idx);
             for (auto desc_it = descriptions.begin(); desc_it < descriptions.end();) {
                 const auto& desc = *desc_it;
@@ -102,6 +126,7 @@ bool ov::pass::PushConstantToSubgraph::run_on_model(const std::shared_ptr<Model>
                 const auto body_parameter_index = desc->m_body_parameter_index;
                 desc_it = descriptions.erase(desc_it);
                 auto& body_param = body_params[body_parameter_index];
+                std::cout << "[EMUTEX DEBUG] PushConstantToSubgraph replace body_param " << body_param->get_friendly_name() << std::endl;
                 replace_body_parameter(body, body_param, body_parameter_index, constant, descriptions);
                 remove_inputs_mask[input_index] = true;
                 result = true;
@@ -109,6 +134,7 @@ bool ov::pass::PushConstantToSubgraph::run_on_model(const std::shared_ptr<Model>
         }
 
         if (result) {
+            std::cout << "[EMUTEX DEBUG] PushConstantToSubgraph update_multi_sub_graph_op_inputs" << std::endl;
             update_multi_sub_graph_op_inputs(multi_sub_graph_op, remove_inputs_mask);
         }
 
@@ -117,6 +143,8 @@ bool ov::pass::PushConstantToSubgraph::run_on_model(const std::shared_ptr<Model>
             result = result || model_changed;
         }
     }
+
+    std::cout << "[EMUTEX DEBUG] PushConstantToSubgraph finished" << std::endl;
 
     return result;
 }

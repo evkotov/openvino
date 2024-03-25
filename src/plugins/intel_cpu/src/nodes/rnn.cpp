@@ -233,14 +233,26 @@ bool RNN::isSupportedOperation(const std::shared_ptr<const ov::Node>& op, std::s
                 ov::op::v5::GRUSequence::get_type_info_static(),
                 ov::op::v5::RNNSequence::get_type_info_static())) {
             // Plug-in does not support dynamism on weights.
+            if (!ov::op::util::is_on_constant_path(op->input_value(3)))
+                std::cout << "[EMUTEX DEBUG] !ov::op::util::is_on_constant_path(op->input_value(3)) " <<
+                op->input_value(3).get_node()->get_friendly_name() << std::endl;
+            if (!ov::op::util::is_on_constant_path(op->input_value(4)))
+                std::cout << "[EMUTEX DEBUG] !ov::op::util::is_on_constant_path(op->input_value(4)) " <<
+                op->input_value(4).get_node()->get_friendly_name() << std::endl;
+            if (op->get_input_size() > 5 && !ov::op::util::is_on_constant_path(op->input_value(5)))
+                std::cout << "[EMUTEX DEBUG] (op->get_input_size() > 5 && !ov::op::util::is_on_constant_path(op->input_value(5)))" <<
+                op->input_value(5).get_node()->get_friendly_name() << std::endl;
+
             if (!ov::op::util::is_on_constant_path(op->input_value(3)) ||
                 !ov::op::util::is_on_constant_path(op->input_value(4)) ||
                 (op->get_input_size() > 5 && !ov::op::util::is_on_constant_path(op->input_value(5)))) {
                 errorMessage = "Node expects constants as W, R, B inputs.";
+                std::cout << "[EMUTEX DEBUG] " << errorMessage << std::endl;
                 return false;
             }
             if (ov::is_type<ov::op::v0::LSTMCell>(op) && op->get_input_size() != 6) {
                 errorMessage = "Node expects 6 inputs. Actual: " + std::to_string(op->get_input_size());
+                std::cout << "[EMUTEX DEBUG] " << errorMessage << std::endl;
                 return false;
             }
         } else if (one_of(op->get_type_info(),

@@ -157,6 +157,7 @@ void dump_model(const std::shared_ptr<ov::Model>& model,
 }
 
 bool DebugSerialize::run_on_model(const std::shared_ptr<ov::Model>& f) {
+    std::cout << _prefix << std::endl;
 #if 1
     int counter = 0;
     dump_model(f, _prefix, counter, nullptr);
@@ -234,7 +235,12 @@ bool ov::pass::MOCTransformations::run_on_model(const std::shared_ptr<ov::Model>
     REGISTER_PASS(manager, RemoveMultiSubGraphOpDanglingParamsResults)
     REGISTER_PASS(manager, FoldSubgraphEmptyInputs)
     REGISTER_PASS(manager, DisableRandomUniformConstantFolding)
+    manager.register_pass<DebugSerialize>("before_PushConstantToSubgraph"); // DEBUG
     REGISTER_PASS(manager, PushConstantToSubgraph)
+    manager.register_pass<DebugSerialize>("after_PushConstantToSubgraph"); // DEBUG
+    manager.register_pass<DebugSerialize>("before_LSTMCellFusion"); // DEBUG
+    REGISTER_PASS(manager, LSTMCellFusion)
+    manager.register_pass<DebugSerialize>("after_LSTMCellFusion"); // DEBUG
     REGISTER_PASS(manager, ConstantFolding)
     REGISTER_PASS(manager, Validate)
 
@@ -265,9 +271,9 @@ bool ov::pass::MOCTransformations::run_on_model(const std::shared_ptr<ov::Model>
     REGISTER_PASS(manager, PullThroughReduce)
 
     // GRUCellFusion and SequenceFusion should be before NopElimination
-    manager.register_pass<DebugSerialize>("before_LSTMCellFusion"); // DEBUG
-    REGISTER_PASS(manager, LSTMCellFusion)
-    manager.register_pass<DebugSerialize>("after_LSTMCellFusion"); // DEBUG
+    //manager.register_pass<DebugSerialize>("before_LSTMCellFusion"); // DEBUG
+    //REGISTER_PASS(manager, LSTMCellFusion)
+    //manager.register_pass<DebugSerialize>("after_LSTMCellFusion"); // DEBUG
 
     //manager.register_pass<DebugSerialize>("before_GRUCellFusion"); // DEBUG
     REGISTER_PASS(manager, GRUCellFusion)
