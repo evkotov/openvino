@@ -57,6 +57,80 @@ string GetHexData(const std::shared_ptr<ov::op::v0::Constant>& node) {
     return GetHexData(node->get_data_ptr(), node->get_byte_size());
 }
 
+template <typename T>
+std::string get_const_value(const std::shared_ptr<ov::op::v0::Constant>& node) {
+    std::stringstream value_stream;
+    const auto value = node->cast_vector<T>();
+    value_stream << "[";
+    for (size_t i = 0; i < std::min(static_cast<size_t>(4), value.size()); ++i) {
+        if (i)
+            value_stream << ",";
+        value_stream << value[i];
+    }
+    if (value.size() > 4) {
+        value_stream << "...";
+    }
+    value_stream << "]" << std::endl;
+    return value_stream.str();
+}
+
+string GetConstantValues(const std::shared_ptr<ov::op::v0::Constant>& node) {
+    std::stringstream ss;
+    switch (node->get_output_element_type(0)) {
+        case ov::element::Type_t::dynamic:
+            ss << "[ dynamic value ]";
+            break;
+        case ov::element::Type_t::nf4:
+            ss << "[ nf4 value ]";
+            break;
+        case ov::element::Type_t::f8e4m3:
+            ss << "[ f8e4m3 value ]";
+            break;
+        case ov::element::Type_t::f8e5m2:
+            ss << "[ f8e5m2 value ]";
+            break;
+        case ov::element::Type_t::string:
+            ss << "[ string value ]";
+            break;
+        case ov::element::Type_t::f4e2m1:
+            ss << "[ f4e2m1 value ]";
+            break;
+        case ov::element::Type_t::f8e8m0:
+            ss << "[ f8e8m0 value ]";
+            break;
+        case ov::element::Type_t::bf16:
+        case ov::element::Type_t::f16:
+        case ov::element::Type_t::f32:
+        case ov::element::Type_t::f64:
+            ss << "value double: " << get_const_value<double>(node);
+            break;
+        case ov::element::Type_t::i4:
+        case ov::element::Type_t::i8:
+        case ov::element::Type_t::i16:
+        case ov::element::Type_t::i32:
+        case ov::element::Type_t::i64:
+            ss << "value int64_t: " << get_const_value<int64_t>(node);
+            break;
+        case ov::element::Type_t::boolean:
+        case ov::element::Type_t::u1:
+        case ov::element::Type_t::u2:
+        case ov::element::Type_t::u3:
+        case ov::element::Type_t::u4:
+        case ov::element::Type_t::u6:
+        case ov::element::Type_t::u8:
+        case ov::element::Type_t::u16:
+        case ov::element::Type_t::u32:
+        case ov::element::Type_t::u64:
+            ss << "value uint64_t: " << get_const_value<uint64_t>(node);
+            break;
+        default:
+            ss << "[ undefined value ]";
+            break;
+
+    }
+    return ss.str();
+}
+
 string GetModelInfo(const std::shared_ptr<Model>& model) {
     stringstream  ss;
     unordered_set<string> op_types;
@@ -73,7 +147,13 @@ string GetModelInfo(const std::shared_ptr<Model>& model) {
         }
         if (auto const_node = dynamic_pointer_cast<ov::op::v0::Constant>(node)) {
             ss << node->get_friendly_name() << " " << node->get_type_name() <<
-                 " " << GetHexData(const_node) << std::endl;
+                 " " <<
+               #if 0
+                 GetHexData(const_node)
+               #else
+                 GetConstantValues(const_node)
+               #endif
+                 << std::endl;
         }
 
         const string type_name = node->get_type_name();
