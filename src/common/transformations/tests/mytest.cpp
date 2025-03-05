@@ -57,27 +57,22 @@ string GetHexData(const std::shared_ptr<ov::op::v0::Constant>& node) {
     return GetHexData(node->get_data_ptr(), node->get_byte_size());
 }
 
-}
-
-TEST(TransformationTests, EkotovTest) {
-    Core core;
-    std::shared_ptr<ov::Model> fun(nullptr);
-    auto model = core.read_model("before_constantfolding.xml");
-
+string GetModelInfo(const std::shared_ptr<Model>& model) {
+    stringstream  ss;
     unordered_set<string> op_types;
     unordered_map<string, int> ops;
     for (auto node: model->get_ops()) {
         if (auto broadcast_node = dynamic_pointer_cast<ov::op::util::BroadcastBase>(node)) {
-            cout << node->get_friendly_name() << " " << node->get_type_name() <<
-            " spec " << GetBroadCastSpec(broadcast_node) << " " <<
-            GetBroadcastAxes(broadcast_node) << std::endl;
+            ss << node->get_friendly_name() << " " << node->get_type_name() <<
+                 " spec " << GetBroadCastSpec(broadcast_node) << " " <<
+                 GetBroadcastAxes(broadcast_node) << std::endl;
         }
         if (auto concat_node = dynamic_pointer_cast<ov::op::v0::Concat>(node)) {
-            cout << node->get_friendly_name() << " " << node->get_type_name() <<
-            " axis " << concat_node->get_axis() << std::endl;
+            ss << node->get_friendly_name() << " " << node->get_type_name() <<
+                 " axis " << concat_node->get_axis() << std::endl;
         }
         if (auto const_node = dynamic_pointer_cast<ov::op::v0::Constant>(node)) {
-            cout << node->get_friendly_name() << " " << node->get_type_name() <<
+            ss << node->get_friendly_name() << " " << node->get_type_name() <<
                  " " << GetHexData(const_node) << std::endl;
         }
 
@@ -93,12 +88,27 @@ TEST(TransformationTests, EkotovTest) {
     vector<string> v_types(op_types.begin(), op_types.end());
     sort(v_types.begin(), v_types.end());
     for (auto type: v_types) {
-        std::cout << type << " " << ops[type] << std::endl;
+        ss << type << " " << ops[type] << std::endl;
     }
 
-#if 0
+    return ss.str();
+}
+
+}
+
+TEST(TransformationTests, EkotovTest) {
+    Core core;
+    auto model = core.read_model("before_constantfolding.xml");
+
+    std::cout << "BEFORE START" << std::endl;
+    std::cout << GetModelInfo(model) << std::endl;
+    std::cout << "BEFORE END" << std::endl;
+
     pass::Manager manager;
     manager.register_pass<pass::ConstantFolding>();
-    manager.run_passes(fun);
-#endif
+    manager.run_passes(model);
+
+    std::cout << "AFTER START" << std::endl;
+    std::cout << GetModelInfo(model) << std::endl;
+    std::cout << "AFTER END" << std::endl;
 }
