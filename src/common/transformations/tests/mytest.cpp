@@ -62,13 +62,10 @@ std::string get_const_value(const std::shared_ptr<ov::op::v0::Constant>& node) {
     std::stringstream value_stream;
     const auto value = node->cast_vector<T>();
     value_stream << "[";
-    for (size_t i = 0; i < std::min(static_cast<size_t>(4), value.size()); ++i) {
+    for (size_t i = 0; i < value.size(); ++i) {
         if (i)
             value_stream << ",";
         value_stream << value[i];
-    }
-    if (value.size() > 4) {
-        value_stream << "...";
     }
     value_stream << "]" << std::endl;
     return value_stream.str();
@@ -102,14 +99,16 @@ string GetConstantValues(const std::shared_ptr<ov::op::v0::Constant>& node) {
         case ov::element::Type_t::f16:
         case ov::element::Type_t::f32:
         case ov::element::Type_t::f64:
-            ss << "value double: " << get_const_value<double>(node);
+            ss << node->get_output_element_type(0) <<
+            " cast to double: " << get_const_value<double>(node);
             break;
         case ov::element::Type_t::i4:
         case ov::element::Type_t::i8:
         case ov::element::Type_t::i16:
         case ov::element::Type_t::i32:
         case ov::element::Type_t::i64:
-            ss << "value int64_t: " << get_const_value<int64_t>(node);
+            ss << node->get_output_element_type(0) <<
+            " cast to int64_t: " << get_const_value<int64_t>(node);
             break;
         case ov::element::Type_t::boolean:
         case ov::element::Type_t::u1:
@@ -121,12 +120,12 @@ string GetConstantValues(const std::shared_ptr<ov::op::v0::Constant>& node) {
         case ov::element::Type_t::u16:
         case ov::element::Type_t::u32:
         case ov::element::Type_t::u64:
-            ss << "value uint64_t: " << get_const_value<uint64_t>(node);
+            ss << node->get_output_element_type(0) <<
+            " cast to uint64_t: " << get_const_value<uint64_t>(node);
             break;
         default:
             ss << "[ undefined value ]";
             break;
-
     }
     return ss.str();
 }
