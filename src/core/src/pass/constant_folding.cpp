@@ -17,6 +17,135 @@
 #include "transformations/rt_info/decompression.hpp"
 #include "transformations/rt_info/dequantization_node.hpp"
 
+
+#include <unordered_set>
+#include <iostream>
+#include <fstream>
+
+using namespace std;
+
+namespace {
+// Function to trim leading and trailing whitespace from a string
+std::string trim(const std::string& str) {
+    size_t first = str.find_first_not_of(" \t\n\r");
+    if (first == std::string::npos) return "";
+    size_t last = str.find_last_not_of(" \t\n\r");
+    return str.substr(first, (last - first + 1));
+}
+
+// Function to read a file line by line and store unique lines in an unordered_set
+std::unordered_set<std::string> readFileToSet(const std::string& filename) {
+    std::unordered_set<std::string> linesSet;
+    std::ifstream file(filename);
+    if (!file) {
+        std::cerr << "Error: Unable to open file " << filename << std::endl;
+        return linesSet;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        line = trim(line);
+        if (!line.empty()) {
+            linesSet.insert(line);
+        }
+    }
+    file.close();
+    return linesSet;
+}
+
+string GetHexData(const void* data, size_t size) {
+    auto bytes = static_cast<const unsigned char*>(data);
+    stringstream  ss;
+    ss << "[";
+    for (size_t i = 0; i < size; ++i) {
+        ss << std::hex << std::setw(2) << std::setfill('0') << (int)bytes[i];
+        if (i < size - 1) {
+            ss << " ";
+        }
+    }
+    ss << "]";
+    return ss.str();
+}
+
+string GetHexData(const std::shared_ptr<ov::op::v0::Constant>& node) {
+    return GetHexData(node->get_data_ptr(), node->get_byte_size());
+}
+
+template <typename T>
+std::string get_const_value(const std::shared_ptr<ov::op::v0::Constant>& node) {
+    std::stringstream value_stream;
+    const auto value = node->cast_vector<T>();
+    value_stream << "[";
+    for (size_t i = 0; i < value.size(); ++i) {
+        if (i)
+            value_stream << ",";
+        value_stream << value[i];
+    }
+    value_stream << "]" << std::endl;
+    return value_stream.str();
+}
+
+string GetConstantValues(const std::shared_ptr<ov::op::v0::Constant>& node) {
+    std::stringstream ss;
+    switch (node->get_output_element_type(0)) {
+        case ov::element::Type_t::dynamic:
+            ss << "[ dynamic value ]";
+            break;
+        case ov::element::Type_t::nf4:
+            ss << "[ nf4 value ]";
+            break;
+        case ov::element::Type_t::f8e4m3:
+            ss << "[ f8e4m3 value ]";
+            break;
+        case ov::element::Type_t::f8e5m2:
+            ss << "[ f8e5m2 value ]";
+            break;
+        case ov::element::Type_t::string:
+            ss << "[ string value ]";
+            break;
+        case ov::element::Type_t::f4e2m1:
+            ss << "[ f4e2m1 value ]";
+            break;
+        case ov::element::Type_t::f8e8m0:
+            ss << "[ f8e8m0 value ]";
+            break;
+        case ov::element::Type_t::bf16:
+        case ov::element::Type_t::f16:
+        case ov::element::Type_t::f32:
+        case ov::element::Type_t::f64:
+            ss << node->get_output_element_type(0) <<
+               " cast to double: " << get_const_value<double>(node);
+            break;
+        case ov::element::Type_t::i4:
+        case ov::element::Type_t::i8:
+        case ov::element::Type_t::i16:
+        case ov::element::Type_t::i32:
+        case ov::element::Type_t::i64:
+            ss << node->get_output_element_type(0) <<
+               " cast to int64_t: " << get_const_value<int64_t>(node);
+            break;
+        case ov::element::Type_t::boolean:
+        case ov::element::Type_t::u1:
+        case ov::element::Type_t::u2:
+        case ov::element::Type_t::u3:
+        case ov::element::Type_t::u4:
+        case ov::element::Type_t::u6:
+        case ov::element::Type_t::u8:
+        case ov::element::Type_t::u16:
+        case ov::element::Type_t::u32:
+        case ov::element::Type_t::u64:
+            ss << node->get_output_element_type(0) <<
+               " cast to uint64_t: " << get_const_value<uint64_t>(node);
+            break;
+        default:
+            ss << "[ undefined value ]";
+            break;
+    }
+    return ss.str();
+}
+
+}
+
 /**
  * \brief Check if \ref ov::Output<ov::Node> can be folded base on `can_be_folded` attribute.
  *
@@ -104,6 +233,8 @@ static void remove_requires_precision_conversion_attribute(const std::shared_ptr
 bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& model) {
     RUN_ON_MODEL_SCOPE(ConstantFolding);
 
+    auto debug_nodes = readFileToSet("parent_nodes_list");
+
     bool rewritten = pre_calculated_values_folding(model);
 
     for (const auto& original_node : model->get_ordered_ops()) {
@@ -148,6 +279,17 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
                 const auto& replacement = replacements.at(i);
                 auto replacement_ptr = replacement.get_node_shared_ptr();
                 if (replacement_ptr && (node_output != replacement)) {
+
+                    if (debug_nodes.find(original_node->get_friendly_name()) != debug_nodes.end()) {
+                        auto new_const = dynamic_pointer_cast<ov::op::v0::Constant>(replacement_ptr);
+                        if (new_const) {
+                            std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetConstantValues(new_const) << std::endl;
+                        } else {
+                            std::cout << "node " << original_node->get_friendly_name() << " replacement is not a constant but " <<
+                            replacement_ptr->get_type_name() << std::endl;
+                        }
+                    }
+
                     replacement_ptr->set_friendly_name(friendly_name_from(*original_node, replacements.size(), i));
 
                     node_output.replace(replacement);
@@ -162,6 +304,11 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
                 }
             }
         } else {
+
+            if (original_node->get_friendly_name() == "/crosstransformer/Reshape_17") {
+                std::cout << __FILE__ << ":" << __LINE__ << std::endl;
+            }
+
             // if CF was unsuccessful remove original precision attribute from inputs
             bool restored = restore_original_input_precision(original_node);
             if (restored) {
