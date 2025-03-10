@@ -113,6 +113,9 @@ string GetConstantValues(const std::shared_ptr<ov::op::v0::Constant>& node) {
         case ov::element::Type_t::bf16:
         case ov::element::Type_t::f16:
         case ov::element::Type_t::f32:
+            ss << node->get_output_element_type(0) <<
+            " cast to double: " << get_const_value<float>(node);
+            break;
         case ov::element::Type_t::f64:
             ss << node->get_output_element_type(0) <<
                " cast to double: " << get_const_value<double>(node);
@@ -290,18 +293,18 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
                                   " " << original_node->get_type_name() << std::endl;
                     }
 #endif
-#if 0
+#if 1
                     //if (debug_nodes.find(original_node->get_friendly_name()) != debug_nodes.end()) {
-                    //if (original_node->get_friendly_name() == "/crosstransformer/Div_5") {
+                    if (original_node->get_friendly_name() == "/crosstransformer/Div_5") {
                         auto new_const = dynamic_pointer_cast<ov::op::v0::Constant>(replacement_ptr);
                         if (new_const) {
-                            //std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetConstantValues(new_const) << std::endl;
-                            std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetHexData(new_const) << std::endl;
+                            std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetConstantValues(new_const) << std::endl;
+                            //std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetHexData(new_const) << std::endl;
                         } else {
                             std::cout << "node " << original_node->get_friendly_name() << " replacement is not a constant but " <<
                             replacement_ptr->get_type_name() << std::endl;
                         }
-                    //}
+                    }
 #endif
                     replacement_ptr->set_friendly_name(friendly_name_from(*original_node, replacements.size(), i));
 
