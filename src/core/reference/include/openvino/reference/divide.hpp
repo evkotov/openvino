@@ -22,7 +22,7 @@ template <class T>
 constexpr T div(const T x, const T y) {
     T z = x / y;
     std::cout << __FILE__ << ":" << __LINE__ << " x = " << x <<
-    " y = " << y << "x / y" << z << std::endl;
+    " y = " << y << " x / y = " << z << std::endl;
     return x / y;
 }
 
