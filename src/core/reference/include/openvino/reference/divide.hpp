@@ -20,6 +20,7 @@ namespace func {
 
 template <class T>
 constexpr T div(const T x, const T y) {
+#if 0
     T z = x / y;
     std::cout << __FILE__ << ":" << __LINE__ << " x = " << x <<
     " y = " << y << " x / y = " << z << " ";
@@ -36,6 +37,7 @@ constexpr T div(const T x, const T y) {
     else
         std::cout << "Type T: unknown " << sizeof(T) << " bytes ";
     std::cout << std::endl;
+#endif
     return x / y;
 }
 
@@ -43,7 +45,6 @@ constexpr T div(const T x, const T y) {
 // out-of-bounds value is detected in the input tensor.
 template <class T>
 T try_div(const T x, const T y) {
-    std::cout << __FILE__ << ":" << __LINE__ << std::endl;
     if (y == 0) {
         throw std::domain_error("integer division by zero");
     }
@@ -52,7 +53,6 @@ T try_div(const T x, const T y) {
 
 template <class T>
 T try_python_div(const T x, const T y) {
-    std::cout << __FILE__ << ":" << __LINE__ << std::endl;
     if (y == 0) {
         throw std::domain_error("integer division by zero");
     }
@@ -70,7 +70,6 @@ typename std::enable_if<std::is_integral<T>::value>::type divide(const T* arg0,
                                                                  const Shape& arg1_shape,
                                                                  const op::AutoBroadcastSpec& broadcast_spec,
                                                                  bool pythondiv) {
-    std::cout << __FILE__ << ":" << __LINE__ << std::endl;
     auto div = pythondiv ? func::try_python_div<T> : func::try_div<T>;
     autobroadcast_binop(arg0, arg1, out, arg0_shape, arg1_shape, broadcast_spec, div);
 }
@@ -83,7 +82,6 @@ typename std::enable_if<std::is_floating_point<T>::value || std::is_same<T, bflo
 divide(const T* arg0, const T* arg1, T* out, size_t count, bool) {
     // TODO: Here we do not check for div by zero, so we'll get +-inf here
     // if arg1[i] == 0. Is that the right thing to do? Jury's still out.
-    std::cout << __FILE__ << ":" << __LINE__ << std::endl;
     std::transform(arg0, arg0 + count, arg1, out, func::div<T>);
 }
 
@@ -97,7 +95,6 @@ divide(const T* arg0,
        const Shape& arg1_shape,
        const op::AutoBroadcastSpec& broadcast_spec,
        bool) {
-    std::cout << __FILE__ << ":" << __LINE__ << std::endl;
     autobroadcast_binop(arg0, arg1, out, arg0_shape, arg1_shape, broadcast_spec, func::div<T>);
 }
 }  // namespace reference

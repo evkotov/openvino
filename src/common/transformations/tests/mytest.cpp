@@ -572,18 +572,43 @@ void proceed_node(const std::shared_ptr<Model>& model,
 #endif
 }
 
+template <class T>
+constexpr T emutex_div(const T x, const T y) {
+    T z = x / y;
+    std::cout << __FILE__ << ":" << __LINE__ << " x = " << x <<
+              " y = " << y << " x / y = " << z << " ";
+    if constexpr (std::is_same_v<T, int>)
+        std::cout << "Type T: int " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, double>)
+        std::cout << "Type T: double " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, float>)
+        std::cout << "Type T: float " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, float16>)
+        std::cout << "Type T: float16 " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, bfloat16>)
+        std::cout << "Type T: bfloat16 " << sizeof(T) << " bytes ";
+    else
+        std::cout << "Type T: unknown " << sizeof(T) << " bytes ";
+    std::cout << std::endl;
+    return x / y;
+}
+
 }
 
 TEST(TransformationTests, EkotovTest) {
+#if 0
+    emutex_div(37.0f, 1474.44f);
+    emutex_div(85.0f, 1474.44f);
+#endif
+#if 1
     Core core;
     auto model = core.read_model("before_constantfolding.xml");
-
-
 
     //proceed_node(model, "/crosstransformer/Reshape_17");
 #if 1
     pass::Manager manager;
     manager.register_pass<pass::ConstantFolding>();
     manager.run_passes(model);
+#endif
 #endif
 }
