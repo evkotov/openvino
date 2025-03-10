@@ -571,7 +571,7 @@ void proceed_node(const std::shared_ptr<Model>& model,
     dump.dump("subgraph.dot");
 #endif
 }
-
+#if 0
 template <class T>
 constexpr T emutex_div(const T x, const T y) {
     T z = x / y;
@@ -592,6 +592,7 @@ constexpr T emutex_div(const T x, const T y) {
     std::cout << std::endl;
     return x / y;
 }
+#endif
 
 }
 

@@ -290,7 +290,7 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
                                   " " << original_node->get_type_name() << std::endl;
                     }
 #endif
-#if 1
+#if 0
                     //if (debug_nodes.find(original_node->get_friendly_name()) != debug_nodes.end()) {
                     //if (original_node->get_friendly_name() == "/crosstransformer/Div_5") {
                         auto new_const = dynamic_pointer_cast<ov::op::v0::Constant>(replacement_ptr);

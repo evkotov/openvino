@@ -14,16 +14,35 @@
 #include "openvino/op/util/attr_types.hpp"
 #include "openvino/reference/autobroadcast_binop.hpp"
 
+#include <sstream>
+#include <iostream>
+#include <iomanip>
+
 namespace ov {
 namespace reference {
 namespace func {
 
 template <class T>
 constexpr T div(const T x, const T y) {
-#if 0
+
+    auto print_hex = [](const T* t) -> std::string {
+        const auto size = sizeof(T);
+        auto bytes = reinterpret_cast<const unsigned char*>(t);
+        std::stringstream  ss;
+        ss << "[";
+        for (size_t i = 0; i < size; ++i) {
+            ss << std::hex << std::setw(2) << std::setfill('0') << (int)bytes[i];
+            if (i < size - 1) {
+                ss << " ";
+            }
+        }
+        ss << "]";
+        return ss.str();
+    };
+
     T z = x / y;
-    std::cout << __FILE__ << ":" << __LINE__ << " x = " << x <<
-    " y = " << y << " x / y = " << z << " ";
+    std::cout << __FILE__ << ":" << __LINE__ << " x = " << x << " " << print_hex(&x) << " " <<
+    " y = " << y << " " << print_hex(&y) << " x / y = " << z << " " << print_hex(&z) << " ";
     if constexpr (std::is_same_v<T, int>)
         std::cout << "Type T: int " << sizeof(T) << " bytes ";
     else if constexpr (std::is_same_v<T, double>)
@@ -37,7 +56,6 @@ constexpr T div(const T x, const T y) {
     else
         std::cout << "Type T: unknown " << sizeof(T) << " bytes ";
     std::cout << std::endl;
-#endif
     return x / y;
 }
 
