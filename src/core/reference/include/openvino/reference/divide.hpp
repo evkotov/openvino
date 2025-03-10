@@ -22,7 +22,20 @@ template <class T>
 constexpr T div(const T x, const T y) {
     T z = x / y;
     std::cout << __FILE__ << ":" << __LINE__ << " x = " << x <<
-    " y = " << y << " x / y = " << z << std::endl;
+    " y = " << y << " x / y = " << z << " ";
+    if constexpr (std::is_same_v<T, int>)
+        std::cout << "Type T: int " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, double>)
+        std::cout << "Type T: double " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, float>)
+        std::cout << "Type T: float " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, float16>)
+        std::cout << "Type T: float16 " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, bfloat16>)
+        std::cout << "Type T: bfloat16 " << sizeof(T) << " bytes ";
+    else
+        std::cout << "Type T: unknown " << sizeof(T) << " bytes ";
+    std::cout << std::endl;
     return x / y;
 }
 

@@ -578,6 +578,8 @@ TEST(TransformationTests, EkotovTest) {
     Core core;
     auto model = core.read_model("before_constantfolding.xml");
 
+
+
     //proceed_node(model, "/crosstransformer/Reshape_17");
 #if 1
     pass::Manager manager;
