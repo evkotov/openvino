@@ -234,7 +234,7 @@ static void remove_requires_precision_conversion_attribute(const std::shared_ptr
 bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& model) {
     RUN_ON_MODEL_SCOPE(ConstantFolding);
 #if 1
-    auto debug_nodes = readFileToSet("parent_nodes_list");
+    //auto debug_nodes = readFileToSet("parent_nodes_list");
 #endif
     bool rewritten = pre_calculated_values_folding(model);
 
@@ -291,7 +291,7 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
                     }
 #endif
 #if 1
-                    if (debug_nodes.find(original_node->get_friendly_name()) != debug_nodes.end()) {
+                    //if (debug_nodes.find(original_node->get_friendly_name()) != debug_nodes.end()) {
                     //if (original_node->get_friendly_name() == "/crosstransformer/Div_5") {
                         auto new_const = dynamic_pointer_cast<ov::op::v0::Constant>(replacement_ptr);
                         if (new_const) {
@@ -301,7 +301,7 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
                             std::cout << "node " << original_node->get_friendly_name() << " replacement is not a constant but " <<
                             replacement_ptr->get_type_name() << std::endl;
                         }
-                    }
+                    //}
 #endif
                     replacement_ptr->set_friendly_name(friendly_name_from(*original_node, replacements.size(), i));
 
