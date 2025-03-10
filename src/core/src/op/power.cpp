@@ -45,6 +45,8 @@ bool Power::evaluate(TensorVector& outputs, const TensorVector& inputs) const {
     OV_OP_SCOPE(v1_Power_evaluate);
     OPENVINO_ASSERT(outputs.size() == 1);
 
+    std::cout << __FILE__ << ":" << __LINE__ << std::endl;
+
     auto& out = outputs[0];
     out.set_shape(infer_broadcast_shape(this, inputs));
 

@@ -24,7 +24,7 @@ namespace func {
 
 template <class T>
 constexpr T div(const T x, const T y) {
-
+#if 0
     auto print_hex = [](const T* t) -> std::string {
         const auto size = sizeof(T);
         auto bytes = reinterpret_cast<const unsigned char*>(t);
@@ -56,6 +56,7 @@ constexpr T div(const T x, const T y) {
     else
         std::cout << "Type T: unknown " << sizeof(T) << " bytes ";
     std::cout << std::endl;
+#endif
     return x / y;
 }
 

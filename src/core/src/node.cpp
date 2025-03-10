@@ -719,7 +719,7 @@ bool ov::Node::constant_fold(OutputVector& output_values, const OutputVector& in
     OV_ITT_SCOPED_TASK(ov::itt::domains::core, "Node::constant_fold");
 
     bool debug = false;
-    if (get_friendly_name() == "/crosstransformer/Div_5")
+    if (get_friendly_name() == "/crosstransformer/Pow")
         debug = true;
 
     if (!Node::can_constant_fold(input_values)) {

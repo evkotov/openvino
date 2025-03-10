@@ -295,11 +295,12 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
 #endif
 #if 1
                     //if (debug_nodes.find(original_node->get_friendly_name()) != debug_nodes.end()) {
-                    if (original_node->get_friendly_name() == "/crosstransformer/Div_5") {
+                    //if (original_node->get_friendly_name() == "/crosstransformer/Div_5") {
+                    if (original_node->get_friendly_name() == "/crosstransformer/Pow") {
                         auto new_const = dynamic_pointer_cast<ov::op::v0::Constant>(replacement_ptr);
                         if (new_const) {
                             std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetConstantValues(new_const) << std::endl;
-                            //std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetHexData(new_const) << std::endl;
+                            std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetHexData(new_const) << std::endl;
                         } else {
                             std::cout << "node " << original_node->get_friendly_name() << " replacement is not a constant but " <<
                             replacement_ptr->get_type_name() << std::endl;
