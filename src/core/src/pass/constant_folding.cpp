@@ -17,6 +17,7 @@
 #include "transformations/rt_info/decompression.hpp"
 #include "transformations/rt_info/dequantization_node.hpp"
 
+#include "openvino/op/divide.hpp"
 
 #include <unordered_set>
 #include <iostream>
@@ -79,7 +80,7 @@ std::string get_const_value(const std::shared_ptr<ov::op::v0::Constant>& node) {
     for (size_t i = 0; i < value.size(); ++i) {
         if (i)
             value_stream << ",";
-        value_stream << value[i];
+        value_stream << value[i] << std::endl;
     }
     value_stream << "]" << std::endl;
     return value_stream.str();
@@ -232,9 +233,9 @@ static void remove_requires_precision_conversion_attribute(const std::shared_ptr
 
 bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& model) {
     RUN_ON_MODEL_SCOPE(ConstantFolding);
-
+#if 0
     auto debug_nodes = readFileToSet("parent_nodes_list");
-
+#endif
     bool rewritten = pre_calculated_values_folding(model);
 
     for (const auto& original_node : model->get_ordered_ops()) {
@@ -279,8 +280,19 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
                 const auto& replacement = replacements.at(i);
                 auto replacement_ptr = replacement.get_node_shared_ptr();
                 if (replacement_ptr && (node_output != replacement)) {
-
-                    if (debug_nodes.find(original_node->get_friendly_name()) != debug_nodes.end()) {
+                    if (original_node->get_friendly_name() == "/crosstransformer/Div_5") {
+                        std::cout << "original_node->get_friendly_name() " << original_node->get_friendly_name() <<
+                        " " << original_node->get_type_name() << std::endl;
+                    }
+#if 0
+                    if (auto divide = dynamic_pointer_cast<ov::op::v1::Divide>(original_node)) {
+                        std::cout << "original_node->get_friendly_name() " << original_node->get_friendly_name() <<
+                                  " " << original_node->get_type_name() << std::endl;
+                    }
+#endif
+#if 1
+                    //if (debug_nodes.find(original_node->get_friendly_name()) != debug_nodes.end()) {
+                    if (original_node->get_friendly_name() == "/crosstransformer/Div_5") {
                         auto new_const = dynamic_pointer_cast<ov::op::v0::Constant>(replacement_ptr);
                         if (new_const) {
                             std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetConstantValues(new_const) << std::endl;
@@ -289,7 +301,7 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
                             replacement_ptr->get_type_name() << std::endl;
                         }
                     }
-
+#endif
                     replacement_ptr->set_friendly_name(friendly_name_from(*original_node, replacements.size(), i));
 
                     node_output.replace(replacement);
@@ -304,11 +316,6 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
                 }
             }
         } else {
-
-            if (original_node->get_friendly_name() == "/crosstransformer/Reshape_17") {
-                std::cout << __FILE__ << ":" << __LINE__ << std::endl;
-            }
-
             // if CF was unsuccessful remove original precision attribute from inputs
             bool restored = restore_original_input_precision(original_node);
             if (restored) {

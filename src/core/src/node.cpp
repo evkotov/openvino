@@ -718,6 +718,10 @@ bool ov::Node::can_constant_fold(const OutputVector& input_values) const {
 bool ov::Node::constant_fold(OutputVector& output_values, const OutputVector& input_values) {
     OV_ITT_SCOPED_TASK(ov::itt::domains::core, "Node::constant_fold");
 
+    bool debug = false;
+    if (get_friendly_name() == "/crosstransformer/Div_5")
+        debug = true;
+
     if (!Node::can_constant_fold(input_values)) {
         return false;
     }
@@ -742,13 +746,21 @@ bool ov::Node::constant_fold(OutputVector& output_values, const OutputVector& in
         }
     }
 
+    if (debug)
+        std::cout << "START EVALUATE " << __FILE__ << ":" << __LINE__ << std::endl;
+
     if (evaluate(output_tensors, input_tensors)) {
         for (size_t i = 0; i < output_tensors.size(); ++i) {
             output_values[i] = make_shared<ov::op::v0::Constant>(output_tensors[i]);
             ov::copy_runtime_info(nodes, output_values[i].get_node_shared_ptr());
         }
+
+        if (debug)
+            std::cout << "FINISH EVALUATE " << __FILE__ << ":" << __LINE__ << std::endl;
         return true;
     }
+    if (debug)
+        std::cout << "FINISH EVALUATE" << __FILE__ << ":" << __LINE__ << std::endl;
     return false;
 }
 
