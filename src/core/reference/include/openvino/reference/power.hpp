@@ -52,8 +52,8 @@ std::string GetHexData(const T* data) {
 
 template <class T>
 T power(const T x, const T y) {
-#if 0
-    auto z = std::pow(x, y);
+#if 1
+    auto z = std::pow(static_cast<long double>(x), static_cast<long double>(y));
     auto z1 = static_cast<T>(z);
     std::cout << __FILE__ << ":" << __LINE__ << " x = " << x << " " << GetHexData(&x) << " " <<
               " y = " << y << " " << GetHexData(&y) << " std::pow(x, y) = " << z << " " << GetHexData(&z) << " ";
