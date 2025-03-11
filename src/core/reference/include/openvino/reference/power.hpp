@@ -52,6 +52,7 @@ std::string GetHexData(const T* data) {
 
 template <class T>
 T power(const T x, const T y) {
+#if 0
     auto z = std::pow(x, y);
     auto z1 = static_cast<T>(z);
     std::cout << __FILE__ << ":" << __LINE__ << " x = " << x << " " << GetHexData(&x) << " " <<
@@ -70,6 +71,7 @@ T power(const T x, const T y) {
     else
         std::cout << "Type T: unknown " << sizeof(T) << " bytes ";
     std::cout << std::endl;
+#endif
     return static_cast<T>(std::pow(x, y));
 }
 }  // namespace func
@@ -96,6 +98,16 @@ void power(const T* arg0,
            const Shape& arg0_shape,
            const Shape& arg1_shape,
            const op::AutoBroadcastSpec& broadcast_spec) {
+#if 0
+    std::cout << __FILE__ <<  ":" << __LINE__ << std::endl;
+    const float x = 10000;
+    //const float y = 0.792157;
+    float y;
+    std::uint8_t data[4] = {0xCB, 0xCA, 0x4A, 0x3F};
+    std::memcpy(&y, data, sizeof(y));
+    const float z = func::power<T>(x, y);
+    std::cout << __FILE__ <<  ":" << __LINE__ << std::endl;
+#endif
     autobroadcast_binop(arg0, arg1, out, arg0_shape, arg1_shape, broadcast_spec, func::power<T>);
 }
 }  // namespace reference

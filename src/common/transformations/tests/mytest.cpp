@@ -33,7 +33,7 @@ using namespace std;
 using namespace ov;
 
 namespace {
-#if 0
+#if 1
 using NodeDecorator = std::function<std::string(const std::shared_ptr<ov::Node>& node)>;
 using NodeDecorators = std::vector<NodeDecorator>;
 
@@ -594,6 +594,60 @@ constexpr T emutex_div(const T x, const T y) {
 }
 #endif
 
+template <typename T>
+std::string GetHexData(const T* data) {
+    std::stringstream  ss;
+
+    if constexpr (std::is_same_v<T, int>)
+        ss << "Type T: int " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, double>)
+        ss << "Type T: double " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, float>)
+        ss << "Type T: float " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, float16>)
+        ss << "Type T: float16 " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, bfloat16>)
+        ss << "Type T: bfloat16 " << sizeof(T) << " bytes ";
+    else
+        ss << "Type T: unknown " << sizeof(T) << " bytes ";
+
+    const auto size = sizeof(T);
+    auto bytes = reinterpret_cast<const unsigned char*>(data);
+
+    ss << " [";
+    for (size_t i = 0; i < size; ++i) {
+        ss << std::hex << std::setw(2) << std::setfill('0') << (int)bytes[i];
+        if (i < size - 1) {
+            ss << " ";
+        }
+    }
+    ss << "]";
+    return ss.str();
+}
+
+template <class T>
+T emutex_power(const T x, const T y) {
+    auto z = std::pow(x, y);
+    auto z1 = static_cast<T>(z);
+    std::cout << __FILE__ << ":" << __LINE__ << " x = " << x << " " << GetHexData(&x) << " " <<
+              " y = " << y << " " << GetHexData(&y) << " std::pow(x, y) = " << z << " " << GetHexData(&z) << " ";
+    std::cout << "static_cast<T>(std::pow(x, y)) = " << z1 << " " << GetHexData(&z1) << " ";
+    if constexpr (std::is_same_v<T, int>)
+        std::cout << "Type T: int " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, double>)
+        std::cout << "Type T: double " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, float>)
+        std::cout << "Type T: float " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, float16>)
+        std::cout << "Type T: float16 " << sizeof(T) << " bytes ";
+    else if constexpr (std::is_same_v<T, bfloat16>)
+        std::cout << "Type T: bfloat16 " << sizeof(T) << " bytes ";
+    else
+        std::cout << "Type T: unknown " << sizeof(T) << " bytes ";
+    std::cout << std::endl;
+    return static_cast<T>(std::pow(x, y));
+}
+
 }
 
 TEST(TransformationTests, EkotovTest) {
@@ -601,10 +655,31 @@ TEST(TransformationTests, EkotovTest) {
     emutex_div(37.0f, 1474.44f);
     emutex_div(85.0f, 1474.44f);
 #endif
+#if 0
+    const float x = 10000;
+    //const float y = 0.792157;
+    float y;
+    std::uint8_t data[4] = {0xCB, 0xCA, 0x4A, 0x3F};
+    std::memcpy(&y, data, sizeof(y));
+    const float z = emutex_power(x, y);
+#endif
 #if 1
     Core core;
     auto model = core.read_model("before_constantfolding.xml");
-
+#if 0
+    {
+        std::shared_ptr<ov::Node> node;
+        for (auto& op: model->get_ops()) {
+            if (op->get_friendly_name() == "/crosstransformer/Reshape_17")
+                node = op;
+        }
+        if (node) {
+            SubGraphDump dump(node, 5);
+            dump.highlight_node("/crosstransformer/Reshape_17");
+            dump.dump("dump.dot");
+        }
+    }
+#endif
     //proceed_node(model, "/crosstransformer/Reshape_17");
 #if 1
     pass::Manager manager;
