@@ -74,13 +74,28 @@ string GetHexData(const std::shared_ptr<ov::op::v0::Constant>& node) {
 
 template <typename T>
 std::string get_const_value(const std::shared_ptr<ov::op::v0::Constant>& node) {
+    auto print_hex = [](const T* t) -> std::string {
+        const auto size = sizeof(T);
+        auto bytes = reinterpret_cast<const unsigned char*>(t);
+        std::stringstream  ss;
+        ss << "[";
+        for (size_t i = 0; i < size; ++i) {
+            ss << std::hex << std::setw(2) << std::setfill('0') << (int)bytes[i];
+            if (i < size - 1) {
+                ss << " ";
+            }
+        }
+        ss << "]";
+        return ss.str();
+    };
+
     std::stringstream value_stream;
     const auto value = node->cast_vector<T>();
     value_stream << "[";
     for (size_t i = 0; i < value.size(); ++i) {
         if (i)
             value_stream << ",";
-        value_stream << value[i] << std::endl;
+        value_stream << value[i] << " " << print_hex(&value[i]) << std::endl;
     }
     value_stream << "]" << std::endl;
     return value_stream.str();
@@ -301,7 +316,7 @@ bool ov::pass::ConstantFolding::run_on_model(const std::shared_ptr<ov::Model>& m
                         auto new_const = dynamic_pointer_cast<ov::op::v0::Constant>(replacement_ptr);
                         if (new_const) {
                             std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetConstantValues(new_const) << std::endl;
-                            //std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetHexData(new_const) << std::endl;
+                            std::cout << original_node->get_friendly_name() << " replacement[" << i << "] " << GetHexData(new_const) << std::endl;
                         } else {
                             std::cout << "node " << original_node->get_friendly_name() << " replacement is not a constant but " <<
                             replacement_ptr->get_type_name() << std::endl;
