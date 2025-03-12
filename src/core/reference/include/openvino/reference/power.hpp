@@ -53,7 +53,7 @@ std::string GetHexData(const T* data) {
 template <class T>
 T power(const T x, const T y) {
 #if 1
-    auto z = std::pow(static_cast<long double>(x), static_cast<long double>(y));
+    auto z = std::pow(static_cast<double>(x), static_cast<double>(y));
     auto z1 = static_cast<T>(z);
     std::cout << __FILE__ << ":" << __LINE__ << " x = " << x << " " << GetHexData(&x) << " " <<
               " y = " << y << " " << GetHexData(&y) << " std::pow(x, y) = " << z << " " << GetHexData(&z) << " ";
@@ -72,7 +72,8 @@ T power(const T x, const T y) {
         std::cout << "Type T: unknown " << sizeof(T) << " bytes ";
     std::cout << std::endl;
 #endif
-    return static_cast<T>(std::pow(x, y));
+    //return static_cast<T>(std::pow(x, y));
+    return static_cast<T>(std::pow(static_cast<double>(x), static_cast<double>(y)));
 }
 }  // namespace func
 
