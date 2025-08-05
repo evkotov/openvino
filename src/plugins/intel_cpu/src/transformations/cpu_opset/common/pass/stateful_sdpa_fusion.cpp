@@ -46,7 +46,9 @@
 #include "transformations/cpu_opset/common/op/sdpa.hpp"
 #include "transformations/defs.hpp"
 #include "transformations/symbolic_transformations/symbolic_optimizations.hpp"
+#include "transformations/symbolic_transformations/symbol_optimization.hpp"
 #include "transformations/transpose_sinking/ts_shape_of.hpp"
+#include "transformations/common_optimizations/nop_elimination.hpp"
 
 #if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
 #    include "transformations/cpu_opset/x64/pass/sdpa_fuse_transpose_reshape.hpp"
@@ -340,16 +342,19 @@ StatefulSDPAFusion::StatefulSDPAFusion() {
 bool SDPASubgraphFusion::run_on_model(const std::shared_ptr<ov::Model>& f) {
     RUN_ON_FUNCTION_SCOPE(SDPASubgraphFusion);
     
-    ov::pass::SymbolicOptimizations symbolic_optimizations(false, get_pass_config());
+    // SOLUTION: Create SymbolicOptimizations with isolated PassConfig (nullptr)
+    // This prevents the shared PassConfig from being modified, preserving EliminateSqueeze for NgramFusion
+    ov::pass::SymbolicOptimizations symbolic_optimizations(false, nullptr);
     const auto& ctx_manager = symbolic_optimizations.get_manager();
 
+    // Register our passes (auto-registered SymbolicPropagation & ApplySymbolEquivalence may be useful)
     ctx_manager->register_pass<ov::pass::SimplifyGatherShapeOf>();
     ctx_manager->register_pass<ov::pass::transpose_sinking::TSShapeOfForward>();
     ctx_manager->register_pass<StatefulSDPAFusion>();
     CPU_REGISTER_PASS_X64((*ctx_manager), ov::intel_cpu::SDPAFuseTransposeReshape);
 
-    ctx_manager->run_passes(f);
-    remove_skip_invalidation_rti(f);
+    // Use isolated SymbolicOptimizations that won't affect shared PassConfig
+    symbolic_optimizations.run_on_model(f);
     
     return false;
 }
