@@ -161,7 +161,7 @@ public:
     /// \brief Restore transformation to its default state (neither disabled nor force-enabled)
     /// \param type_info Transformation type_info
     void restore_default(const DiscreteTypeInfo& type_info);
-    
+
     /// \brief Restore transformation to its default state by class type
     template <class T>
     void restore_default() {
