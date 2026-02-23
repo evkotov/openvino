@@ -89,9 +89,7 @@ ov::Output<ov::Node> convert_boolean_mask(const ov::Output<ov::Node>& mask, cons
 // key positions j where j <= i + (seq_kv - seq_q). Use this for KV cache scenarios.
 // When use_offset=false, builds a simple lower-triangular mask matching np.tril(k=0),
 // where query position i attends to key positions j where j <= i.
-ov::Output<ov::Node> build_causal_mask(const ov::Output<ov::Node>& Q,
-                                       const ov::Output<ov::Node>& K,
-                                       bool use_offset) {
+ov::Output<ov::Node> build_causal_mask(const ov::Output<ov::Node>& Q, const ov::Output<ov::Node>& K, bool use_offset) {
     auto q_shape = std::make_shared<v3::ShapeOf>(Q);
     auto k_shape = std::make_shared<v3::ShapeOf>(K);
     // Q is 4D: (B, heads, seq_q, head_size), K is 4D: (B, heads, seq_kv, head_size)
