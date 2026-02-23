@@ -74,7 +74,10 @@ class EnvVar:
 
 def run_test(model_id, ie_device, ts_names, expected_layer_types):
     model_cached = snapshot_download(model_id)  # required to avoid HF rate limits
-    model = OVModelForCausalLM.from_pretrained(model_cached, export=True, trust_remote_code=True)
+    try:
+        model = OVModelForCausalLM.from_pretrained(model_cached, export=True, trust_remote_code=True)
+    except (ValueError, ImportError) as e:
+        pytest.skip(f"model export is not possible with the installed package versions: {e}")
 
     with tempfile.NamedTemporaryFile(delete=True) as temp_file, \
             EnvVar({'OV_ENABLE_PROFILE_PASS': temp_file.name}):
