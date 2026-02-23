@@ -22,7 +22,7 @@ bool op::v5::LogSoftmax::visit_attributes(AttributeVisitor& visitor) {
 void op::v5::LogSoftmax::validate_and_infer_types() {
     OV_OP_SCOPE(v5_LogSoftmax_validate_and_infer_types);
     const ov::PartialShape& input_shape = get_input_partial_shape(0);
-    if (const auto& rank = input_shape.rank(); rank.is_static() && rank.get_length() > 0) {
+    if (const auto& rank = input_shape.rank(); rank.is_static()) {
         ov::util::validate_axis(m_axis, rank, *this);
     }
 

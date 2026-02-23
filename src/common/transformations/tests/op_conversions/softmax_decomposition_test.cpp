@@ -20,7 +20,7 @@ using namespace testing;
 TEST_F(TransformationTestsF, SoftmaxDecompositionScalar) {
     {
         auto data = std::make_shared<op::v0::Parameter>(element::f32, Shape{});
-        auto softmax = std::make_shared<op::v8::Softmax>(data, -1);
+        auto softmax = std::make_shared<op::v8::Softmax>(data, 0);
 
         model = std::make_shared<ov::Model>(OutputVector{softmax}, ParameterVector{data});
 

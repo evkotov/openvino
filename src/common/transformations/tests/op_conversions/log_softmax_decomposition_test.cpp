@@ -53,7 +53,7 @@ TEST_F(TransformationTestsF, LogSoftmaxDecomposition) {
 TEST_F(TransformationTestsF, LogSoftmaxDecompositionScalar) {
     {
         auto data = std::make_shared<opset5::Parameter>(element::f32, Shape{});
-        auto log_softmax = std::make_shared<opset5::LogSoftmax>(data, -1);
+        auto log_softmax = std::make_shared<opset5::LogSoftmax>(data, 0);
 
         model = std::make_shared<ov::Model>(OutputVector{log_softmax}, ParameterVector{data});
 

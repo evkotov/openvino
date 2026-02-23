@@ -99,7 +99,7 @@ TEST_F(TransformationTestsF, negative_ConvertSoftMax8ToSoftMax1_dynamic_rank) {
 TEST_F(TransformationTestsF, ConvertSoftMax8ToSoftMax1_scalar) {
     {
         auto data = std::make_shared<opset1::Parameter>(element::f32, Shape{});
-        int64_t axis = -1;
+        int64_t axis = 0;
         auto softmax_8 = std::make_shared<opset8::Softmax>(data, axis);
 
         model = std::make_shared<ov::Model>(OutputVector{softmax_8}, ParameterVector{data});

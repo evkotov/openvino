@@ -71,7 +71,7 @@ TEST(type_prop, softmax_v1_scalar) {
 
 TEST(type_prop, softmax_8_scalar) {
     auto arg = make_shared<ov::op::v0::Parameter>(element::f32, Shape{});
-    auto softmax = make_shared<op::v8::Softmax>(arg, -1);
+    auto softmax = make_shared<op::v8::Softmax>(arg, 0);
     ASSERT_EQ(softmax->get_element_type(), element::f32);
     ASSERT_EQ(softmax->get_output_partial_shape(0), (PartialShape{}));
 }

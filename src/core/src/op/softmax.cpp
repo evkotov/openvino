@@ -43,10 +43,9 @@ void Softmax::validate_and_infer_types() {
     OV_OP_SCOPE(v1_Softmax_validate_and_infer_types);
     const auto& input_shape = get_input_partial_shape(0);
     if (const auto& rank = input_shape.rank(); rank.is_static()) {
-        // v1::Softmax uses unsigned m_axis (size_t), so validate directly.
         const auto r = static_cast<size_t>(rank.get_length());
         NODE_VALIDATION_CHECK(this,
-                              r == 0 || m_axis < r,
+                              (r == 0) ? (m_axis == 0) : (m_axis < r),
                               "Reduction axis (",
                               m_axis,
                               ") is out of bounds (argument shape: ",
@@ -112,7 +111,7 @@ bool Softmax::visit_attributes(AttributeVisitor& visitor) {
 void Softmax::validate_and_infer_types() {
     OV_OP_SCOPE(v8_Softmax_validate_and_infer_types);
     const auto& input_shape = get_input_partial_shape(0);
-    if (const auto& rank = input_shape.rank(); rank.is_static() && rank.get_length() > 0) {
+    if (const auto& rank = input_shape.rank(); rank.is_static()) {
         ov::util::validate_axis(m_axis, rank, *this);
     }
 
