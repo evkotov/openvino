@@ -85,8 +85,13 @@ ov::Output<ov::Node> convert_boolean_mask(const ov::Output<ov::Node>& mask, cons
 }
 
 // Build additive causal mask of shape (seq_q, seq_kv): 0 for allowed, -10000 for masked.
-// Accounts for KV cache offset so that query position i attends to key positions j where j <= i + (S - L).
-ov::Output<ov::Node> build_causal_mask(const ov::Output<ov::Node>& Q, const ov::Output<ov::Node>& K) {
+// When use_offset=true, accounts for KV cache offset so that query position i attends to
+// key positions j where j <= i + (seq_kv - seq_q). Use this for KV cache scenarios.
+// When use_offset=false, builds a simple lower-triangular mask matching np.tril(k=0),
+// where query position i attends to key positions j where j <= i.
+ov::Output<ov::Node> build_causal_mask(const ov::Output<ov::Node>& Q,
+                                       const ov::Output<ov::Node>& K,
+                                       bool use_offset) {
     auto q_shape = std::make_shared<v3::ShapeOf>(Q);
     auto k_shape = std::make_shared<v3::ShapeOf>(K);
     // Q is 4D: (B, heads, seq_q, head_size), K is 4D: (B, heads, seq_kv, head_size)
@@ -102,10 +107,16 @@ ov::Output<ov::Node> build_causal_mask(const ov::Output<ov::Node>& Q, const ov::
     // Column indices: [0, 1, ..., seq_kv-1]
     auto col_indices = std::make_shared<v4::Range>(zero, seq_kv_scalar, one, ov::element::i64);
 
-    // Row indices adjusted for KV cache offset: [offset, offset+1, ..., offset+seq_q-1]
-    auto offset = std::make_shared<v1::Subtract>(seq_kv_scalar, seq_q_scalar);
-    auto end = std::make_shared<v1::Add>(offset, seq_q_scalar);
-    auto row_indices = std::make_shared<v4::Range>(offset, end, one, ov::element::i64);
+    std::shared_ptr<ov::Node> row_indices;
+    if (use_offset) {
+        // Row indices adjusted for KV cache offset: [offset, offset+1, ..., offset+seq_q-1]
+        auto offset = std::make_shared<v1::Subtract>(seq_kv_scalar, seq_q_scalar);
+        auto end = std::make_shared<v1::Add>(offset, seq_q_scalar);
+        row_indices = std::make_shared<v4::Range>(offset, end, one, ov::element::i64);
+    } else {
+        // Row indices without offset: [0, 1, ..., seq_q-1] (matches np.tril(k=0))
+        row_indices = std::make_shared<v4::Range>(zero, seq_q_scalar, one, ov::element::i64);
+    }
 
     // Unsqueeze rows to (seq_q, 1) for broadcasting with (seq_kv,)
     auto axis = v0::Constant::create(ov::element::i64, ov::Shape{1}, {1});
@@ -176,7 +187,7 @@ ov::OutputVector build_manual_attention(const ov::Output<ov::Node>& Q,
         masked = std::make_shared<v1::Add>(scaled_qk, attn_mask);
     }
     if (is_causal) {
-        auto causal_mask = build_causal_mask(Q, K);
+        auto causal_mask = build_causal_mask(Q, K, false);
         masked = std::make_shared<v1::Add>(masked, causal_mask);
     }
 
@@ -364,7 +375,7 @@ ov::OutputVector attention(const ov::frontend::onnx::Node& node) {
     // KV cache offset (seq_kv > seq_q). Build an explicit offset-aware causal mask and pass it
     // as attn_mask instead, disabling SDPA's is_causal flag.
     if (is_causal && has_past_key) {
-        auto causal_mask = detail::build_causal_mask(Q, K);
+        auto causal_mask = detail::build_causal_mask(Q, K, true);
         if (has_attn_mask) {
             attn_mask = std::make_shared<v1::Add>(attn_mask, causal_mask);
         } else {
@@ -378,12 +389,8 @@ ov::OutputVector attention(const ov::frontend::onnx::Node& node) {
     ov::Output<ov::Node> Y;
     ov::Output<ov::Node> qk_debug_output;
 
-    // Workaround: CPU KT_ONEDNN SDPA executor mishandles DirectReshape+Tile pattern
-    // for 3D GQA/MQA inputs. Use manual decomposition to produce correct results.
-    const bool is_3d_gqa = q_is_3d && q_num_heads > 0 && kv_num_heads > 0 && q_num_heads != kv_num_heads;
-
-    if (softcap > 0.0f || needs_qk_output || is_3d_gqa) {
-        // Manual decomposition path (softcap, debug output, or 3D GQA/MQA workaround)
+    if (softcap > 0.0f || needs_qk_output) {
+        // Manual decomposition path (softcap or debug output)
         auto results = detail::build_manual_attention(Q,
                                                       K,
                                                       V,
