@@ -23,7 +23,7 @@ TEST(type_prop, log_softmax_incorrect_axis) {
         auto log_softmax_func = make_shared<op::v5::LogSoftmax>(data, 3);
         FAIL() << "LogSoftmax node was created with incorrect axis.";
     } catch (const NodeValidationFailure& error) {
-        EXPECT_HAS_SUBSTRING(error.what(), std::string("Reduction axis (3) is out of bounds"));
+        EXPECT_HAS_SUBSTRING(error.what(), std::string("Axis 3 out of the tensor rank range"));
     }
 }
 

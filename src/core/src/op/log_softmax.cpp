@@ -5,6 +5,7 @@
 #include "openvino/op/log_softmax.hpp"
 
 #include "itt.hpp"
+#include "openvino/core/validation_util.hpp"
 
 namespace ov {
 
@@ -21,18 +22,8 @@ bool op::v5::LogSoftmax::visit_attributes(AttributeVisitor& visitor) {
 void op::v5::LogSoftmax::validate_and_infer_types() {
     OV_OP_SCOPE(v5_LogSoftmax_validate_and_infer_types);
     const ov::PartialShape& input_shape = get_input_partial_shape(0);
-    if (input_shape.rank().is_static()) {
-        const auto rank = input_shape.rank().get_length();
-        // Rank-0 (scalar) inputs are valid: log_softmax of a single value is always 0.
-        if (rank > 0) {
-            NODE_VALIDATION_CHECK(this,
-                                  m_axis < rank && m_axis >= -rank,
-                                  "Reduction axis (",
-                                  m_axis,
-                                  ") is out of bounds (argument shape: ",
-                                  input_shape,
-                                  ").");
-        }
+    if (const auto& rank = input_shape.rank(); rank.is_static() && rank.get_length() > 0) {
+        ov::util::validate_axis(m_axis, rank, *this);
     }
 
     set_output_type(0, get_input_element_type(0), input_shape);
