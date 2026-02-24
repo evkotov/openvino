@@ -324,7 +324,8 @@ bool has_no_symbols(const ov::TensorSymbol& symbols) {
 }
 
 bool is_axis_valid(int64_t axis, int64_t rank) {
-    return (axis == 0) || (-rank <= axis && axis < rank);
+    // For rank-0 (scalar), treat as rank-1: axis 0 and -1 are both valid.
+    return (axis == 0) || (axis == -1 && rank == 0) || (-rank <= axis && axis < rank);
 }
 
 void validate_axis(const int64_t axis, const Rank& rank, const Node& node) {
@@ -333,6 +334,8 @@ void validate_axis(const int64_t axis, const Rank& rank, const Node& node) {
 }
 
 size_t normalize_axis(const int64_t axis, const int64_t rank) {
+    // For rank-0 (scalar), any valid axis maps to 0.
+    if (rank == 0) return 0;
     return static_cast<size_t>(normalize(axis, rank));
 }
 

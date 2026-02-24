@@ -56,3 +56,10 @@ TEST(type_prop, log_softmax_scalar) {
     EXPECT_EQ(log_softmax_func->get_element_type(), element::f32);
     EXPECT_EQ(log_softmax_func->get_output_partial_shape(0), (PartialShape{}));
 }
+
+TEST(type_prop, log_softmax_scalar_neg_axis) {
+    auto data = make_shared<ov::op::v0::Parameter>(element::f32, Shape{});
+    auto log_softmax_func = make_shared<op::v5::LogSoftmax>(data, -1);
+    EXPECT_EQ(log_softmax_func->get_element_type(), element::f32);
+    EXPECT_EQ(log_softmax_func->get_output_partial_shape(0), (PartialShape{}));
+}
