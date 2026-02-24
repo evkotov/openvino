@@ -335,7 +335,8 @@ void validate_axis(const int64_t axis, const Rank& rank, const Node& node) {
 
 size_t normalize_axis(const int64_t axis, const int64_t rank) {
     // For rank-0 (scalar), any valid axis maps to 0.
-    if (rank == 0) return 0;
+    if (rank == 0)
+        return 0;
     return static_cast<size_t>(normalize(axis, rank));
 }
 
