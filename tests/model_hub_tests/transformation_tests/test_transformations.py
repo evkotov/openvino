@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from huggingface_hub import snapshot_download
-from optimum.intel import OVModelForCausalLM
 import models_hub_common.utils as utils
 import pytest
 import os
@@ -73,6 +72,11 @@ class EnvVar:
 
 
 def run_test(model_id, ie_device, ts_names, expected_layer_types):
+    try:
+        from optimum.intel import OVModelForCausalLM
+    except ImportError:
+        from optimum.intel.openvino import OVModelForCausalLM
+
     model_cached = snapshot_download(model_id)  # required to avoid HF rate limits
     try:
         model = OVModelForCausalLM.from_pretrained(model_cached, export=True, trust_remote_code=True)
