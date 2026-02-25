@@ -86,8 +86,11 @@ def compile_and_check(ov_model, ie_device, ts_names, expected_layer_types):
 def run_test(model_id, ie_device, ts_names, expected_layer_types):
     try:
         from optimum.intel import OVModelForCausalLM
-    except ImportError:
-        from optimum.intel.openvino import OVModelForCausalLM
+    except (ImportError, AttributeError):
+        try:
+            from optimum.intel.openvino import OVModelForCausalLM
+        except (ImportError, AttributeError):
+            pytest.skip("OVModelForCausalLM unavailable with installed package versions")
 
     model_cached = snapshot_download(model_id)  # required to avoid HF rate limits
     try:

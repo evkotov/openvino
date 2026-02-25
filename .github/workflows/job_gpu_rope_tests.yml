@@ -83,9 +83,16 @@ jobs:
           name: openvino_tokenizers_wheel
           path: ${{ env.INSTALL_DIR }}
 
+      - name: Download OpenVINO artifacts (package)
+        uses: akashchi/download-artifact@d59a9c15fec3fdb7c9adf09464124d00f9c11415
+        with:
+          name: openvino_package
+          path: ${{ env.INSTALL_DIR }}
+
       - name: Extract OpenVINO artifacts
         run: |
           apt-get update && apt-get install -y pigz
+          pigz -dc openvino_package.tar.gz | tar -xf - -v
           pigz -dc openvino_tests.tar.gz | tar -xf - -v
         working-directory: ${{ env.INSTALL_DIR }}
 
@@ -143,7 +150,7 @@ jobs:
       - name: GPU RoPE Transformation Tests
         run: |
           export PYTHONPATH=${MODEL_HUB_TESTS_INSTALL_DIR}:$PYTHONPATH
-          python3 -m pip install optimum-intel transformers diffusers --upgrade
+          python3 -m pip install optimum-intel transformers diffusers torch --upgrade --extra-index-url https://download.pytorch.org/whl/cpu
           python3 -m pytest ${MODEL_HUB_TESTS_INSTALL_DIR}/transformation_tests/test_transformations.py \
             -m precommit \
             --html=${INSTALL_TEST_DIR}/TEST-gpu_rope_tests.html \
