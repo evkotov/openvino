@@ -248,7 +248,10 @@ TEST_P(NormalizeAxisTestP, is_axis_valid) {
 TEST_P(NormalizeAxisTestP, is_axis_valid_scalar_rank) {
     const auto& axis = std::get<0>(GetParam());
 
-    if (axis) {
+    if (axis == 0 || axis == -1) {
+        // axis=0 and axis=-1 are both valid for rank-0 (scalar treated as rank-1)
+        EXPECT_TRUE(util::is_axis_valid(axis, 0));
+    } else if (axis) {
         EXPECT_FALSE(util::is_axis_valid(axis, 0));
     }
 }
