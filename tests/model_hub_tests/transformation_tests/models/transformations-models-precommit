@@ -31,3 +31,4 @@ optimum-intel-internal-testing/tiny-random-gemma2,https://huggingface.co/optimum
 optimum-intel-internal-testing/tiny-random-mistral-nemo,https://huggingface.co/optimum-intel-internal-testing/tiny-random-mistral-nemo,,,ts_name:ov::pass::RoPEFusion,layer:RoPE
 optimum-intel-internal-testing/tiny-random-exaone,https://huggingface.co/optimum-intel-internal-testing/tiny-random-exaone,,,ts_name:ov::pass::RoPEFusion,layer:RoPE
 optimum-intel-internal-testing/tiny-random-granite,https://huggingface.co/optimum-intel-internal-testing/tiny-random-granite,,,ts_name:ov::pass::RoPEFusion,layer:RoPE
+hf-internal-testing/tiny-flux-pipe,https://huggingface.co/hf-internal-testing/tiny-flux-pipe,,,ts_name:ov::pass::RoPEFusion,layer:RoPE,type:flux
