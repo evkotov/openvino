@@ -45,7 +45,7 @@ void Softmax::validate_and_infer_types() {
     if (const auto& rank = input_shape.rank(); rank.is_static()) {
         const auto r = static_cast<size_t>(rank.get_length());
         NODE_VALIDATION_CHECK(this,
-                              (r == 0) ? (m_axis == 0) : (m_axis < r),
+                              r == 0 ? (m_axis == 0) : (m_axis < r),
                               "Reduction axis (",
                               m_axis,
                               ") is out of bounds (argument shape: ",
@@ -133,22 +133,8 @@ bool Softmax::evaluate(TensorVector& outputs, const TensorVector& inputs) const 
     const auto rank = static_cast<int64_t>(input_shape.size());
     outputs[0].set_shape(input_shape);
 
-    // Rank-0 (scalar): treat as 1-element 1D tensor; softmax of a single value is always 1.
-    Shape eval_shape;
-    size_t axis;
-    if (rank == 0) {
-        eval_shape = Shape{1};
-        axis = 0;
-    } else {
-        eval_shape = input_shape;
-        OPENVINO_ASSERT(ov::util::is_axis_valid(m_axis, rank),
-                        "Reduction axis (",
-                        m_axis,
-                        ") is out of bounds (argument shape: ",
-                        input_shape,
-                        ").");
-        axis = ov::util::normalize_axis(m_axis, rank);
-    }
+    const auto& eval_shape = (rank == 0) ? Shape{1} : input_shape;
+    const auto axis = (rank == 0) ? size_t{0} : ov::util::normalize_axis(m_axis, rank);
 
     using namespace ov::element;
     return IF_TYPE_OF_CONVERT_TENSORS(v8_Softmax_evaluate,

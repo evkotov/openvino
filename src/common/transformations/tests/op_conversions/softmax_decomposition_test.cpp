@@ -14,8 +14,7 @@
 #include "openvino/op/constant.hpp"
 #include "openvino/op/softmax.hpp"
 #include "openvino/pass/manager.hpp"
-using namespace ov;
-using namespace testing;
+namespace ov::test {
 
 TEST_F(TransformationTestsF, SoftmaxDecompositionScalar) {
     {
@@ -34,3 +33,5 @@ TEST_F(TransformationTestsF, SoftmaxDecompositionScalar) {
         model_ref = std::make_shared<ov::Model>(OutputVector{one_const}, ParameterVector{data});
     }
 }
+
+}  // namespace ov::test

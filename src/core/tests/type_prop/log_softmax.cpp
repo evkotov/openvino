@@ -4,6 +4,7 @@
 
 #include "openvino/op/log_softmax.hpp"
 
+#include "common_test_utils/test_assertions.hpp"
 #include "common_test_utils/type_prop.hpp"
 
 using namespace std;
@@ -19,12 +20,9 @@ TEST(type_prop, log_softmax) {
 TEST(type_prop, log_softmax_incorrect_axis) {
     const auto data = make_shared<ov::op::v0::Parameter>(element::f32, Shape{1, 3, 6});
 
-    try {
-        auto log_softmax_func = make_shared<op::v5::LogSoftmax>(data, 3);
-        FAIL() << "LogSoftmax node was created with incorrect axis.";
-    } catch (const NodeValidationFailure& error) {
-        EXPECT_HAS_SUBSTRING(error.what(), std::string("Axis 3 out of the tensor rank range"));
-    }
+    OV_EXPECT_THROW(std::ignore = make_shared<op::v5::LogSoftmax>(data, 3),
+                    NodeValidationFailure,
+                    testing::HasSubstr("Axis 3 out of the tensor rank range"));
 }
 
 // TEST(type_prop, log_softmax_partial)
