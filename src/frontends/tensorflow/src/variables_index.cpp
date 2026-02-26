@@ -34,9 +34,9 @@ void VariablesIndex::read_variables_index_block(std::ifstream& fs,
     data.resize(block_size + BLOCK_TRAILER_SIZE);
     FRONT_END_GENERAL_CHECK(index.m_offset <= m_variables_index_size,
                             "Block offset is bigger than variables index size");
-    FRONT_END_GENERAL_CHECK(data.size() <= m_variables_index_size &&
-                                index.m_offset <= m_variables_index_size - data.size(),
-                            "Block size is bigger than variables index size");
+    FRONT_END_GENERAL_CHECK(
+        data.size() <= m_variables_index_size && index.m_offset <= m_variables_index_size - data.size(),
+        "Block size is bigger than variables index size");
     fs.seekg(index.m_offset, std::ios::beg);
     fs.read(data.data(), data.size());
 #ifndef ENABLE_SNAPPY_COMPRESSION

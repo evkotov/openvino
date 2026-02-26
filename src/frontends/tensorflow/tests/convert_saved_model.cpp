@@ -205,10 +205,8 @@ TEST(FrontEndConvertModelTest, SavedModelMaliciousOverflowOffset) {
         FAIL() << "Loading a malicious SavedModel with overflow offset should throw an exception.";
     } catch (const ov::Exception& error) {
         string error_message = error.what();
-        EXPECT_TRUE(error_message.find("entry") != string::npos ||
-                    error_message.find("offset") != string::npos ||
-                    error_message.find("bounds") != string::npos ||
-                    error_message.find("negative") != string::npos ||
+        EXPECT_TRUE(error_message.find("entry") != string::npos || error_message.find("offset") != string::npos ||
+                    error_message.find("bounds") != string::npos || error_message.find("negative") != string::npos ||
                     error_message.find("size") != string::npos)
             << "Unexpected error message: " << error_message;
         EXPECT_EQ(model, nullptr);
@@ -221,16 +219,12 @@ TEST(FrontEndConvertModelTest, SavedModelMaliciousOverflowOffset) {
 TEST(FrontEndConvertModelTest, SavedModelMaliciousOverflowOffsetNoMmap) {
     shared_ptr<Model> model = nullptr;
     try {
-        model = convert_model("saved_model_malicious_overflow",
-                              nullptr, {}, {}, {}, {}, {},
-                              true /* disable_mmap */);
+        model = convert_model("saved_model_malicious_overflow", nullptr, {}, {}, {}, {}, {}, true /* disable_mmap */);
         FAIL() << "Loading a malicious SavedModel with overflow offset should throw an exception.";
     } catch (const ov::Exception& error) {
         string error_message = error.what();
-        EXPECT_TRUE(error_message.find("entry") != string::npos ||
-                    error_message.find("offset") != string::npos ||
-                    error_message.find("bounds") != string::npos ||
-                    error_message.find("negative") != string::npos ||
+        EXPECT_TRUE(error_message.find("entry") != string::npos || error_message.find("offset") != string::npos ||
+                    error_message.find("bounds") != string::npos || error_message.find("negative") != string::npos ||
                     error_message.find("size") != string::npos)
             << "Unexpected error message: " << error_message;
         EXPECT_EQ(model, nullptr);

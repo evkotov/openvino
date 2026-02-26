@@ -102,15 +102,8 @@ std::string encode_tensor_name_slice(const std::string& name,
 /// \param size The entry size (int64 from protobuf)
 /// \param data_size The total size of the shard data (mmap or file)
 /// \param context_msg Error context prefix for diagnostics
-inline void validate_bundle_entry_bounds(int64_t offset,
-                                         int64_t size,
-                                         uint64_t data_size,
-                                         const char* context_msg) {
-    FRONT_END_GENERAL_CHECK(offset >= 0,
-                            context_msg,
-                            ": entry offset is negative (",
-                            offset,
-                            ")");
+inline void validate_bundle_entry_bounds(int64_t offset, int64_t size, uint64_t data_size, const char* context_msg) {
+    FRONT_END_GENERAL_CHECK(offset >= 0, context_msg, ": entry offset is negative (", offset, ")");
     FRONT_END_GENERAL_CHECK(size >= 0, context_msg, ": entry size is negative (", size, ")");
     auto u_offset = static_cast<uint64_t>(offset);
     auto u_size = static_cast<uint64_t>(size);
