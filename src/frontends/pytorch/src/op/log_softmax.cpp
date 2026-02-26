@@ -42,6 +42,9 @@ OutputVector translate_log_softmax_common(const NodeContext& context, bool is_fx
     // Unsqueeze to rank 1, apply LogSoftmax with axis=0, then squeeze back.
     const auto& input_pshape = input.get_partial_shape();
     if (input_pshape.rank().is_static() && input_pshape.rank().get_length() == 0) {
+        FRONT_END_OP_CONVERSION_CHECK(dim == 0 || dim == -1,
+                                      "LogSoftmax on scalar input only supports dim=0 or dim=-1, got dim=",
+                                      dim);
         auto zero_const = v0::Constant::create(element::i32, Shape{}, {0});
         input = context.mark_node(std::make_shared<v0::Unsqueeze>(input, zero_const));
         auto log_softmax = context.mark_node(std::make_shared<v5::LogSoftmax>(input, 0));
