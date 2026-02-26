@@ -68,7 +68,11 @@ bool Softmax::evaluate(TensorVector& outputs, const TensorVector& inputs) const 
     OPENVINO_ASSERT(inputs.size() == 1);
 
     const auto& input_shape = inputs[0].get_shape();
+    const auto rank = input_shape.size();
     outputs[0].set_shape(input_shape);
+
+    const auto& eval_shape = (rank == 0) ? Shape{1} : input_shape;
+
     using namespace ov::element;
     return IF_TYPE_OF_CONVERT_TENSORS(v1_Softmax_evaluate,
                                       this,
@@ -79,7 +83,7 @@ bool Softmax::evaluate(TensorVector& outputs, const TensorVector& inputs) const 
                                       inputs[0].get_element_type(),
                                       inputs[0],
                                       outputs[0],
-                                      input_shape,
+                                      eval_shape,
                                       AxisSet{m_axis});
 }
 
