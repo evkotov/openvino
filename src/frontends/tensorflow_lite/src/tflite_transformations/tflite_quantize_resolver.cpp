@@ -64,12 +64,11 @@ ov::Shape get_quant_shape(const ov::Output<ov::Node>& output,
                                 "Per-Channel Quantization of tensor with dynamic rank");
         auto rank = output.get_partial_shape().size();
         auto axis = quantization->get_axis();
-        FRONT_END_GENERAL_CHECK(
-            axis >= 0 && static_cast<size_t>(axis) < rank,
-            "Per-Channel Quantization axis ",
-            axis,
-            " is out of range for tensor of rank ",
-            rank);
+        FRONT_END_GENERAL_CHECK(axis >= 0 && static_cast<size_t>(axis) < rank,
+                                "Per-Channel Quantization axis ",
+                                axis,
+                                " is out of range for tensor of rank ",
+                                rank);
         shape = ov::Shape(rank, 1);
         shape[static_cast<size_t>(axis)] = size;
     }
