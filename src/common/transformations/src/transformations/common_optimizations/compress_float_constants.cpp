@@ -144,10 +144,10 @@ namespace {
 // Used to protect mathematical scale factors (e.g., log(16) in attention bucketing) from FP16
 // rounding errors that cascade through every computation referencing them.
 template <typename T>
-bool scalar_has_high_f16_error(const ov::op::v0::Constant* const_node) {
+bool scalar_has_high_f16_error(const ov::op::v0::Constant& const_node) {
     constexpr double max_relative_error = 1e-4;
     static_assert(sizeof(T) >= 4);
-    const T src = *const_node->get_data_ptr<T>();
+    const T src = *const_node.get_data_ptr<T>();
     if (std::isfinite(src) && src != T{0}) {
         const double src_val = static_cast<double>(src);
         const ov::float16 f16_val = static_cast<ov::float16>(src);
@@ -180,9 +180,9 @@ CompressFloatConstantsImpl::CompressFloatConstantsImpl(bool postponed) {
         // Scalar constants often serve as mathematical scale factors (e.g., log(16) in attention
         // bucketing) where FP16 rounding error cascades through every computation that uses them.
         if (ov::shape_size(const_node->get_shape()) == 1) {
-            if (c_type == ov::element::f32 && scalar_has_high_f16_error<float>(const_node.get()))
+            if (c_type == ov::element::f32 && scalar_has_high_f16_error<float>(*const_node))
                 return false;
-            if (c_type == ov::element::f64 && scalar_has_high_f16_error<double>(const_node.get()))
+            if (c_type == ov::element::f64 && scalar_has_high_f16_error<double>(*const_node))
                 return false;
         }
 
