@@ -118,14 +118,6 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Setup Python 3.11
-        if: ${{ inputs.test_type == 'rope' }}
-        uses: ./.github/actions/setup_python
-        with:
-          version: '3.11'
-          should-setup-pip-paths: 'false'
-          self-hosted-runner: 'true'
-
       - name: Get gtest-parallel script
         if: ${{ inputs.test_type != 'rope' }}
         run: wget https://raw.githubusercontent.com/google/gtest-parallel/master/gtest_parallel.py
